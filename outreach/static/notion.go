@@ -533,7 +533,12 @@ func getNotionDailyDigest() (string, error) {
 
 		// Get the project of the task
 		projectField := properties["Project Name"]
-		project := *projectField.Formula.String
+
+		project := ""
+		if projectField.Formula != nil && projectField.Formula.String != nil {
+			project = *projectField.Formula.String
+		}
+
 		if project != "" {
 			project = "<EM>" + project + "<EM>"
 		}
@@ -581,7 +586,12 @@ func getNotionDailyDigest() (string, error) {
 
 		// Get the project of the task
 		projectField := properties["Tasks -> Project Name"]
-		project := *projectField.Formula.String
+
+		project := ""
+		if projectField.Formula != nil && projectField.Formula.String != nil {
+			project = *projectField.Formula.String
+		}
+
 		if project != "" {
 			project = "<EM>" + project + "<EM>"
 		}

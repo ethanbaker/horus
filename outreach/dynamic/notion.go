@@ -95,7 +95,7 @@ func NotionScheduleRemindersUpdate(m *DynamicOutreachMessage) error {
 		// Query the schedule items
 		schedule, err := notion.QueryDatabase(context.Background(), SCHEDULE_ITEMS.ID, &SCHEDULE_ITEMS.Query)
 		if err != nil {
-			mainErr = err
+			log.Printf("[ERROR]: Error in notion/NotionScheduleReminders, retrying (err: %v)\n", err)
 			continue
 		}
 
@@ -142,7 +142,7 @@ func NotionScheduleRemindersUpdate(m *DynamicOutreachMessage) error {
 		if mainErr == nil {
 			break
 		}
-		log.Printf("[ERROR]: Error in notion/NotionScheduleReminders, retrying (err: %v)\n", err)
+		log.Printf("[ERROR]: Error in notion/NotionScheduleReminders, retrying (err: %v)\n", mainErr)
 	}
 
 	// If there's an error, return it
