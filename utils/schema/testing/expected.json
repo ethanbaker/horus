@@ -1,0 +1,7 @@
+{
+    "Test with empty definition": "{\"properties\":{}}",
+    "Test with definition properties set": "{\"type\":\"string\",\"description\":\"A string type\",\"properties\":{\"name\":{\"type\":\"string\",\"properties\":{}}}}",
+    "Test with nested definition properties": "{\"type\":\"object\",\"properties\":{\"age\":{\"type\":\"integer\",\"properties\":{}},\"name\":{\"type\":\"string\",\"properties\":{}}}}",
+    "Test with complex nested definition": "{\"type\":\"object\",\"properties\":{\"user\":{\"type\":\"object\",\"properties\":{\"address\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"properties\":{}},\"country\":{\"type\":\"string\",\"properties\":{}}}},\"age\":{\"type\":\"integer\",\"properties\":{}},\"name\":{\"type\":\"string\",\"properties\":{}}}}}}",
+    "Test with array type definition": "{\"type\":\"array\",\"properties\":{\"name\":{\"type\":\"string\",\"properties\":{}}},\"items\":{\"type\":\"string\",\"properties\":{}}}"
+}
