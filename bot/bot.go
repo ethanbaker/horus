@@ -154,7 +154,8 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 					// Check if output matches the output type. If so, return
 					val, ok := output.(*types.Output)
 					if ok {
-						return val, val.Error
+						err = conversation.AddToolResponse(openai.ChatMessageRoleTool, call.Function.Name, val.Message, call.ID)
+						return val, err
 					}
 
 					// Marshal the output into a string

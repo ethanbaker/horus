@@ -1,6 +1,10 @@
 module github.com/ethanbaker/horus/outreach
 
+replace github.com/ethanbaker/horus/bot => ../bot
+replace github.com/ethanbaker/horus/utils => ../utils
+
 go 1.20
+
 
 require (
 	github.com/arran4/golang-ical v0.2.8
