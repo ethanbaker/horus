@@ -1,8 +1,8 @@
 module github.com/ethanbaker/horus/implementations/discord
 
 replace github.com/ethanbaker/horus/bot => ../../bot
-
 replace github.com/ethanbaker/horus/utils => ../../utils
+replace github.com/ethanbaker/horus/outreach => ../../outreach
 
 go 1.20
 

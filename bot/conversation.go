@@ -135,6 +135,30 @@ func (c *Conversation) AddMessage(role string, name string, content string) erro
 	return nil
 }
 
+// Add a tool response to the conversation without sending it
+func (c *Conversation) AddToolResponse(role string, name string, content string, id string) error {
+	// Add the message to the chat completion request
+	chatCompletionMessage := openai.ChatCompletionMessage{
+		Role:       role,
+		Name:       name,
+		Content:    content,
+		ToolCallID: id,
+	}
+
+	// Create a new message from the user
+	m, err := newMessage(c.Model.ID, uint(len(c.Messages)), &chatCompletionMessage)
+	if err != nil {
+		return err
+	}
+
+	// Add the message to the conversation and save it
+	if err := c.appendMessage(m); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Sets up a conversation with the OpenAI client
 func (c *Conversation) setup(client *openai.Client, functions *map[string]openai.FunctionDefinition) {
 	// Setup the client and request
