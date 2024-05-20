@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/stretchr/objx"
@@ -19,8 +20,8 @@ type Bot struct {
 	Memory        Memory         // Static memory associated with a bot
 	Conversations []Conversation // A list of conversations with the user
 
-	// Initalized variables (don't change after creation)
-	client              *openai.Client                                  `gorm:"-"` // The OpenAI client
+	// initialized variables (don't change after creation)
+	Config              *config.Config                                  `gorm:"-"` // The configuration that the bot runs on
 	functionDefinitions map[string]openai.FunctionDefinition            `gorm:"-"` // Function definitions to plug into GPT prompts
 	handlers            []func(function string, input *types.Input) any `gorm:"-"` // A list of handlers from associated modules
 
@@ -47,7 +48,7 @@ func (b *Bot) AddConversation(key string) error {
 	if err != nil {
 		return err
 	}
-	c.setup(b.client, &b.functionDefinitions)
+	c.setup(b.Config.Openai, &b.functionDefinitions)
 
 	// Add the conversation to the bot
 	b.Conversations = append(b.Conversations, c)
@@ -257,13 +258,18 @@ func (b *Bot) GetVariable(key string) any {
 }
 
 // Setup sets up the bot with an openai Client
-func (b *Bot) Setup(client *openai.Client) {
-	b.client = client
+func (b *Bot) Setup(config *config.Config) error {
+	b.Config = config
+	if err := initSQL(config); err != nil {
+		return err
+	}
 
 	// Set up each associated conversations
 	for i := range b.Conversations {
-		b.Conversations[i].setup(client, &b.functionDefinitions)
+		b.Conversations[i].setup(config.Openai, &b.functionDefinitions)
 	}
+
+	return db.Create(&b).Error
 }
 
 // NewBot creates a new Bot object
@@ -280,5 +286,5 @@ func NewBot(name string, permissions byte) (*Bot, error) {
 		variables:           map[string]any{},
 	}
 
-	return &b, db.Create(&b).Error
+	return &b, nil
 }

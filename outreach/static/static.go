@@ -3,15 +3,16 @@ package static
 import (
 	"fmt"
 
+	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
 	"github.com/robfig/cron/v3"
 )
 
 /* ---- INIT ---- */
 
-// Run init functions
-func Init() error {
-	if err := NotionInit(); err != nil {
+// Run Init functions
+func Init(config *config.Config) error {
+	if err := NotionInit(config); err != nil {
 		return err
 	}
 
@@ -22,7 +23,7 @@ func Init() error {
 
 // A map of enabled functions in the submodule. New messages can be
 // called using a key in this map
-var enabledFunctions = map[string]func() string{
+var enabledFunctions = map[string]func(*config.Config) string{
 	"ping":                        Ping,
 	"notion-daily-digest":         NotionDailyDigest,
 	"notion-night-affirmations":   NotionNightAffirmations,
@@ -35,8 +36,8 @@ var enabledFunctions = map[string]func() string{
 // repeat on a given interval supplied by a CRON string by calling a custom-built
 // function
 type StaticOutreachMessage struct {
-	Function func() string // The function that will be called repeatedly
-	Channels []chan string // Channels that Horus will send the response to
+	Function func(*config.Config) string // The function that will be called repeatedly
+	Channels []chan string               // Channels that Horus will send the response to
 
 	Repeat string // The cron string used to repeat calls
 
@@ -44,8 +45,8 @@ type StaticOutreachMessage struct {
 	stopped bool       `gorm:"-"` // Whether or not the task is stopped
 }
 
-func (m *StaticOutreachMessage) GetContent() string {
-	return m.Function()
+func (m *StaticOutreachMessage) GetContent(c *config.Config) string {
+	return m.Function(c)
 }
 
 func (m *StaticOutreachMessage) GetChannels() []chan string {
@@ -98,6 +99,11 @@ func (m *StaticOutreachMessage) Delete() error {
 
 // New creates a new static message (we don't save these to a DB because they're statically called in implementations)
 func New(services *types.OutreachServices, channels []chan string, raw any) (types.OutreachMessage, error) {
+	// Run the init functions
+	if err := Init(services.Config); err != nil {
+		return nil, err
+	}
+
 	// Cast the raw input data
 	data, ok := raw.(types.StaticOutreach)
 	if !ok {
@@ -121,7 +127,7 @@ func New(services *types.OutreachServices, channels []chan string, raw any) (typ
 	m.cronjob = services.Cron
 	_, err := m.cronjob.AddFunc(m.Repeat, func() {
 		// Get the content of the message once
-		content := m.GetContent()
+		content := m.GetContent(services.Config)
 
 		// Send the content through to each channel
 		for _, c := range m.GetChannels() {

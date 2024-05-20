@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/ethanbaker/horus/utils/format"
 	"github.com/ethanbaker/horus/utils/types"
 )
 
@@ -57,7 +58,7 @@ func onThreadMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	// Format the output
-	output := format(resp.Message)
+	output := format.FormatDiscord(resp.Message)
 
 	// Send the output
 	s.ChannelMessageSend(m.ChannelID, output)

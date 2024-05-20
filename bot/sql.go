@@ -1,23 +1,19 @@
 package horus
 
 import (
+	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
 	openai "github.com/sashabaranov/go-openai"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
 var db *gorm.DB
 
-// InitSQL initializes the SQL database the structs are connected to
-func InitSQL(dsn string) error {
+// initSQL initializes the SQL database the structs are connected to
+func initSQL(c *config.Config) error {
 	var err error
 
-	// Open a database with gorm
-	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return err
-	}
+	db = c.Gorm
 
 	// Migrate all of the schemas
 	if err = db.AutoMigrate(&ToolCall{}); err != nil {
@@ -48,7 +44,7 @@ func GetAllBots() ([]Bot, error) {
 		return bots, err
 	}
 
-	// Initalize bot fields
+	// initialize bot fields
 	for i := range bots {
 		bot := &bots[i]
 		bot.functionDefinitions = map[string]openai.FunctionDefinition{}

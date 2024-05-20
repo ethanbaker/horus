@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	horus "github.com/ethanbaker/horus/bot"
@@ -146,7 +145,7 @@ func get_weather(bot *horus.Bot, input *types.Input) any {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
-	url := fmt.Sprintf("%s/data/2.5/weather?q=%s&appid=%s", os.Getenv("WEATHER_BASE_URL"), location, os.Getenv("WEATHER_TOKEN"))
+	url := fmt.Sprintf("%s/data/2.5/weather?q=%s&appid=%s", bot.Config.Getenv("WEATHER_BASE_URL"), location, bot.Config.Getenv("WEATHER_TOKEN"))
 
 	// Send the request
 	resp, err := client.Get(url)

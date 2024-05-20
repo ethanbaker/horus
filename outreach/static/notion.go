@@ -1,10 +1,8 @@
 package static
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +11,7 @@ import (
 
 	ics "github.com/arran4/golang-ical"
 	notionapi "github.com/dstotijn/go-notion"
+	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
 	"github.com/teambition/rrule-go"
 	"gopkg.in/yaml.v3"
@@ -35,29 +34,12 @@ type Event struct {
 	AllDay bool
 }
 
-type httpTransport struct {
-	w io.Writer
-}
-
-// RoundTrip implements http.RoundTripper. It multiplexes the read HTTP response
-// data to an io.Writer for debugging.
-func (t *httpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	res, err := http.DefaultTransport.RoundTrip(req)
-	if err != nil {
-		return nil, err
-	}
-
-	res.Body = io.NopCloser(io.TeeReader(res.Body, t.w))
-
-	return res, nil
-}
-
 /* ---- CONSTANTS ---- */
 
 const DIGEST_ERROR_LIMIT = 10
 
 var NORMAL_TASKS = NotionDatabase{
-	ID: os.Getenv("NOTION_DATABASE_TASKS_ID"),
+	ID: "",
 	Query: notionapi.DatabaseQuery{
 		Filter: &notionapi.DatabaseQueryFilter{
 			And: []notionapi.DatabaseQueryFilter{
@@ -135,7 +117,7 @@ var NORMAL_TASKS = NotionDatabase{
 }
 
 var CRITICAL_TASKS = NotionDatabase{
-	ID: os.Getenv("NOTION_DATABASE_TASKS_ID"),
+	ID: "",
 	Query: notionapi.DatabaseQuery{
 		Filter: &notionapi.DatabaseQueryFilter{
 			And: []notionapi.DatabaseQueryFilter{
@@ -181,7 +163,7 @@ var CRITICAL_TASKS = NotionDatabase{
 }
 
 var SCHEDULE_ITEMS = NotionDatabase{
-	ID: os.Getenv("NOTION_DATABASE_SCHEDULE_ID"),
+	ID: "",
 	Query: notionapi.DatabaseQuery{
 		Filter: &notionapi.DatabaseQueryFilter{
 			// 'Day' is checked
@@ -205,7 +187,7 @@ var SCHEDULE_ITEMS = NotionDatabase{
 }
 
 var RECURRING_TASKS = NotionDatabase{
-	ID: os.Getenv("NOTION_DATABASE_RECURRING_ID"),
+	ID: "",
 	Query: notionapi.DatabaseQuery{
 		Filter: &notionapi.DatabaseQueryFilter{
 			And: []notionapi.DatabaseQueryFilter{
@@ -259,17 +241,11 @@ var RECURRING_TASKS = NotionDatabase{
 	},
 }
 
-var MORNING_AFFIRMATIONS_PAGE = os.Getenv("NOTION_PAGE_MORNING_AFFIRMATIONS")
+var MORNING_AFFIRMATIONS_PAGE = ""
 
-var NIGHT_AFFIRMATIONS_PAGE = os.Getenv("NOTION_PAGE_NIGHT_AFFIRMATIONS")
+var NIGHT_AFFIRMATIONS_PAGE = ""
 
 /* ---- GLOBALS ---- */
-
-// The notion client functions will be using
-var notion *notionapi.Client = notionapi.NewClient(os.Getenv("NOTION_API_TOKEN"), notionapi.WithHTTPClient(&http.Client{
-	Timeout:   20 * time.Second,
-	Transport: &httpTransport{w: &bytes.Buffer{}},
-}))
 
 // Calendars for parsing iCal formats
 var calendars []*ics.Calendar
@@ -279,9 +255,17 @@ var formatLoc *time.Location
 
 /* ---- INIT ---- */
 
-func NotionInit() error {
+func NotionInit(c *config.Config) error {
+	// Initialize constants
+	NORMAL_TASKS.ID = c.Getenv("NOTION_DATABASE_TASKS_ID")
+	CRITICAL_TASKS.ID = c.Getenv("NOTION_DATABASE_TASKS_ID")
+	SCHEDULE_ITEMS.ID = c.Getenv("NOTION_DATABASE_SCHEDULE_ID")
+	RECURRING_TASKS.ID = c.Getenv("NOTION_DATABASE_RECURRING_ID")
+	MORNING_AFFIRMATIONS_PAGE = c.Getenv("NOTION_PAGE_MORNING_AFFIRMATIONS")
+	NIGHT_AFFIRMATIONS_PAGE = c.Getenv("NOTION_PAGE_NIGHT_AFFIRMATIONS")
+
 	// Read in calendar config
-	yamlFile, err := os.ReadFile(os.Getenv("BASE_PATH") + os.Getenv("CALENDAR_CONFIG"))
+	yamlFile, err := os.ReadFile(c.Getenv("BASE_PATH") + c.Getenv("CALENDAR_CONFIG"))
 	if err != nil {
 		return err
 	}
@@ -321,13 +305,13 @@ func NotionInit() error {
 /* ---- METHODS ---- */
 
 // NotionDailyDigest formats a long, digest string for the user to read with tons of information from Notion
-func NotionDailyDigest() string {
+func NotionDailyDigest(c *config.Config) string {
 	var output string
 	var err error
 
 	// Run for a given number of times
 	for i := 0; i < DIGEST_ERROR_LIMIT; i++ {
-		output, err = getNotionDailyDigest()
+		output, err = getNotionDailyDigest(c)
 
 		// On no error, return the output
 		if err == nil {
@@ -341,7 +325,7 @@ func NotionDailyDigest() string {
 }
 
 // helper function to get the Notion Daily Digest with associated errors
-func getNotionDailyDigest() (string, error) {
+func getNotionDailyDigest(c *config.Config) (string, error) {
 	var output string
 
 	loc := time.UTC
@@ -438,7 +422,7 @@ func getNotionDailyDigest() (string, error) {
 	}
 
 	// Get the schedule database
-	schedule, err := notion.QueryDatabase(context.Background(), SCHEDULE_ITEMS.ID, &SCHEDULE_ITEMS.Query)
+	schedule, err := c.Notion.QueryDatabase(context.Background(), SCHEDULE_ITEMS.ID, &SCHEDULE_ITEMS.Query)
 	if err != nil {
 		return "", err
 	}
@@ -446,7 +430,7 @@ func getNotionDailyDigest() (string, error) {
 	// Loop for each task page
 	for _, p := range schedule.Results {
 		// Get the page property IDs from Notion
-		page, err := notion.FindPageByID(context.Background(), p.ID)
+		page, err := c.Notion.FindPageByID(context.Background(), p.ID)
 		if err != nil {
 			return "", err
 		}
@@ -501,7 +485,7 @@ func getNotionDailyDigest() (string, error) {
 	}
 
 	// Get the tasks page
-	tasks, err := notion.QueryDatabase(context.Background(), NORMAL_TASKS.ID, &NORMAL_TASKS.Query)
+	tasks, err := c.Notion.QueryDatabase(context.Background(), NORMAL_TASKS.ID, &NORMAL_TASKS.Query)
 	if err != nil {
 		return "", err
 	}
@@ -513,7 +497,7 @@ func getNotionDailyDigest() (string, error) {
 	// Loop for each task page
 	for _, p := range tasks.Results {
 		// Get the page property IDs from Notion
-		page, err := notion.FindPageByID(context.Background(), p.ID)
+		page, err := c.Notion.FindPageByID(context.Background(), p.ID)
 		if err != nil {
 			return "", err
 		}
@@ -554,7 +538,7 @@ func getNotionDailyDigest() (string, error) {
 	}
 
 	// Get the tasks page
-	criticalTasks, err := notion.QueryDatabase(context.Background(), CRITICAL_TASKS.ID, &CRITICAL_TASKS.Query)
+	criticalTasks, err := c.Notion.QueryDatabase(context.Background(), CRITICAL_TASKS.ID, &CRITICAL_TASKS.Query)
 	if err != nil {
 		return "", err
 	}
@@ -566,7 +550,7 @@ func getNotionDailyDigest() (string, error) {
 	// Loop for each task page
 	for _, p := range criticalTasks.Results {
 		// Get the page property IDs from Notion
-		page, err := notion.FindPageByID(context.Background(), p.ID)
+		page, err := c.Notion.FindPageByID(context.Background(), p.ID)
 		if err != nil {
 			return "", err
 		}
@@ -610,7 +594,7 @@ func getNotionDailyDigest() (string, error) {
 	for _, t := range []string{"Connection", "Habit", "Chore"} {
 		RECURRING_TASKS.Query.Filter.And[3].Select.Equals = t
 
-		recurring, err := notion.QueryDatabase(context.Background(), RECURRING_TASKS.ID, &RECURRING_TASKS.Query)
+		recurring, err := c.Notion.QueryDatabase(context.Background(), RECURRING_TASKS.ID, &RECURRING_TASKS.Query)
 		if err != nil {
 			return "", err
 		}
@@ -622,7 +606,7 @@ func getNotionDailyDigest() (string, error) {
 		// Loop for each task page
 		for _, p := range recurring.Results {
 			// Get the page property IDs from Notion
-			page, err := notion.FindPageByID(context.Background(), p.ID)
+			page, err := c.Notion.FindPageByID(context.Background(), p.ID)
 			if err != nil {
 				return "", err
 			}
@@ -648,13 +632,13 @@ func getNotionDailyDigest() (string, error) {
 }
 
 // NotionNightAffirmations returns the night affirmations stored in Notion
-func NotionNightAffirmations() string {
+func NotionNightAffirmations(c *config.Config) string {
 	var output string
 	var err error
 
 	// Run for a given number of times
 	for i := 0; i < DIGEST_ERROR_LIMIT; i++ {
-		output, err = getAffirmations(NIGHT_AFFIRMATIONS_PAGE)
+		output, err = getAffirmations(c, NIGHT_AFFIRMATIONS_PAGE)
 
 		// On no error, return the output
 		if err == nil {
@@ -668,13 +652,13 @@ func NotionNightAffirmations() string {
 }
 
 // NotionMorningAffirmations returns the morning affirmations stored in Notion
-func NotionMorningAffirmations() string {
+func NotionMorningAffirmations(c *config.Config) string {
 	var output string
 	var err error
 
 	// Run for a given number of times
 	for i := 0; i < DIGEST_ERROR_LIMIT; i++ {
-		output, err = getAffirmations(MORNING_AFFIRMATIONS_PAGE)
+		output, err = getAffirmations(c, MORNING_AFFIRMATIONS_PAGE)
 
 		// On no error, return the output
 		if err == nil {
@@ -688,9 +672,9 @@ func NotionMorningAffirmations() string {
 }
 
 // getAffirmations sends the night affirmations page in Notion
-func getAffirmations(id string) (string, error) {
+func getAffirmations(c *config.Config, id string) (string, error) {
 	// Get the page from notion
-	page, err := notion.FindBlockChildrenByID(context.Background(), id, &notionapi.PaginationQuery{
+	page, err := c.Notion.FindBlockChildrenByID(context.Background(), id, &notionapi.PaginationQuery{
 		StartCursor: "",
 		PageSize:    100,
 	})

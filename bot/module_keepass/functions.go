@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"regexp"
 
 	horus "github.com/ethanbaker/horus/bot"
@@ -34,10 +33,6 @@ type apiError struct {
 }
 
 /* ---- GLOBAL CONSTANTS ---- */
-
-// Keepass API configuration
-var URL = os.Getenv("KEEPASS_BASE_URL")
-var TOKEN = os.Getenv("KEEPASS_TOKEN")
 
 // Confirmation message
 const CONFIRM_MESSAGE = `Value saved successfully.
@@ -74,11 +69,11 @@ func get_keepass(bot *horus.Bot, input *types.Input) any {
 	// Get the keepass database
 	client := &http.Client{}
 
-	req, err := http.NewRequest("GET", URL, nil)
+	req, err := http.NewRequest("GET", bot.Config.Getenv("KEEPASS_BASE_URL"), nil)
 	if err != nil {
 		return &types.Output{Error: errors.New("cannot create http request")}
 	}
-	req.Header.Set("token", TOKEN)
+	req.Header.Set("token", bot.Config.Getenv("KEEPASS_TOKEN"))
 
 	res, err := client.Do(req)
 	if err != nil {
@@ -157,7 +152,7 @@ func create_keepass_step(bot *horus.Bot, input *types.Input) *types.Output {
 	case 3:
 		profile.Password = input.Message
 
-	// Update URL
+	// Update bot.Config.Getenv("KEEPASS_BASE_URL")
 	case 4:
 		profile.Url = input.Message
 
@@ -217,12 +212,12 @@ func create_keepass_confirm(bot *horus.Bot, input *types.Input) *types.Output {
 	}
 
 	// Send the request
-	req, err := http.NewRequest("POST", URL, bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest("POST", bot.Config.Getenv("KEEPASS_BASE_URL"), bytes.NewBuffer(reqBody))
 	if err != nil {
 		output.Error = err
 		return &output
 	}
-	req.Header.Set("token", TOKEN)
+	req.Header.Set("token", bot.Config.Getenv("KEEPASS_TOKEN"))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -320,7 +315,7 @@ func update_keepass_step(bot *horus.Bot, input *types.Input) *types.Output {
 	case 3:
 		profile.Password = input.Message
 
-	// Update URL
+	// Update bot.Config.Getenv("KEEPASS_BASE_URL")
 	case 4:
 		profile.Url = input.Message
 
@@ -380,12 +375,12 @@ func update_keepass_confirm(bot *horus.Bot, input *types.Input) *types.Output {
 	}
 
 	// Send the request
-	req, err := http.NewRequest("PUT", URL, bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest("PUT", bot.Config.Getenv("KEEPASS_BASE_URL"), bytes.NewBuffer(reqBody))
 	if err != nil {
 		output.Error = err
 		return &output
 	}
-	req.Header.Set("token", TOKEN)
+	req.Header.Set("token", bot.Config.Getenv("KEEPASS_TOKEN"))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -523,12 +518,12 @@ func delete_keepass_confirm(bot *horus.Bot, input *types.Input) *types.Output {
 	}
 
 	// Send the request
-	req, err := http.NewRequest("DELETE", URL, bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest("DELETE", bot.Config.Getenv("KEEPASS_URL"), bytes.NewBuffer(reqBody))
 	if err != nil {
 		output.Error = err
 		return &output
 	}
-	req.Header.Set("token", TOKEN)
+	req.Header.Set("token", bot.Config.Getenv("KEEPASS_TOKEN"))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

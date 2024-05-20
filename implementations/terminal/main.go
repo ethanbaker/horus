@@ -7,15 +7,13 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
 	horus "github.com/ethanbaker/horus/bot"
 	module_ambient "github.com/ethanbaker/horus/bot/module_ambient"
 	module_config "github.com/ethanbaker/horus/bot/module_config"
 	module_keepass "github.com/ethanbaker/horus/bot/module_keepass"
+	horus_config "github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
-	mysql_driver "github.com/go-sql-driver/mysql"
-	"github.com/sashabaranov/go-openai"
 )
 
 /* -------- CONSTANTS -------- */
@@ -32,22 +30,11 @@ const INTERACTABLE = false
 
 /* -------- GLOBALS -------- */
 
-// The config for the SQL database
-var config = mysql_driver.Config{
-	User:      "horus_library_test",
-	Passwd:    "X4UMTqprnJqPOxnLntG8qhIg4ezDcu3s",
-	Net:       "tcp",
-	Addr:      "127.0.0.1:3306",
-	DBName:    "horus_library_test",
-	ParseTime: true,
-	Loc:       time.Local,
-}
-
-// The OpenAI client
-var client *openai.Client
-
 // The horus bot
 var bot *horus.Bot
+
+// The config for Horus to run off of
+var config *horus_config.Config
 
 // Scanner to read user input
 var scanner *bufio.Scanner
@@ -106,14 +93,16 @@ func sendMultiMessage(name string) {
 
 func main() {
 	var err error
+	var errs []error
 
-	// Initialize the SQl
-	if err = horus.InitSQL(config.FormatDSN()); err != nil {
-		log.Fatal(err)
+	// initialize the config
+	config, errs = horus_config.NewConfigFromFile(".env")
+	if len(errs) > 0 {
+		for _, err := range errs {
+			log.Printf("[ERROR]: In terminal, error from config (%v)\n", err)
+		}
+		log.Fatalf("[ERROR]: In terminal, error reading config. Failing\n")
 	}
-
-	// Create the OpenAI client
-	client = openai.NewClient(os.Getenv("OPENAI_TOKEN"))
 
 	// Try to get a bot that we've already created
 	bot, err = horus.GetBotByName("horus-testing")
@@ -133,7 +122,11 @@ func main() {
 	module_ambient.NewModule(bot, true)
 	module_config.NewModule(bot, true)
 	module_keepass.NewModule(bot, true)
-	bot.Setup(client)
+
+	if err := bot.Setup(config); err != nil {
+		log.Fatalf("[ERROR]: In terminal, error setting up bot (%v)\n", err)
+	}
+	log.Println("[STATUS]: Successfully initialized bot")
 
 	// Read user input
 	scanner = bufio.NewScanner(os.Stdin)

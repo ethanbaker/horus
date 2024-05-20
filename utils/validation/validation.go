@@ -1,5 +1,7 @@
-// validation validates given messages for a given intent
+// Package validation validates given messages for a given intent
 package validation
+
+// TODO: perform stronger word analysis than checking against word bank
 
 import "strings"
 
