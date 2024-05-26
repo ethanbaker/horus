@@ -1,0 +1,18 @@
+static:
+  - name: notion-daily-digest
+    key: discord
+    repeat: "0 10 * * *"
+  
+  - name: notion-night-affirmations
+    key: discord
+    repeat: "0 23 * * *"
+
+  - name: notion-morning-affirmations
+    key: discord
+    repeat: "0 11 * * *"
+
+
+dynamic:
+  - name: notion-schedule-reminders
+    key: discord
+    interval: 5

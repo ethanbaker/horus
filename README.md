@@ -28,16 +28,19 @@ NEED GITHUB WORKFLOW [![Go Coverage](https://github.com/ethanbaker/horus/wiki/co
 
 [![GoDoc](https://godoc.org/github.com/ethanbaker/horus/utils?status.svg)](https://godoc.org/github.com/ethanbaker/horus/utils)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ethanbaker/horus/utils)](https://goreportcard.com/report/github.com/ethanbaker/horus/utils)
+[![Go Coverage Report](./docs/utils-coverage.svg)](#)
 
 <h4>Bot</h4>
 
 [![GoDoc](https://godoc.org/github.com/ethanbaker/horus/bot?status.svg)](https://godoc.org/github.com/ethanbaker/horus/bot)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ethanbaker/horus/bot)](https://goreportcard.com/report/github.com/ethanbaker/horus/bot)
+[![Go Coverage Report](./docs/bot-coverage.svg)](#)
 
 <h4>Outreach</h4>
 
 [![GoDoc](https://godoc.org/github.com/ethanbaker/horus/outreach?status.svg)](https://godoc.org/github.com/ethanbaker/horus/outreach)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ethanbaker/horus/outreach)](https://goreportcard.com/report/github.com/ethanbaker/horus/outreach)
+[![Go Coverage Report](./docs/outreach-coverage.svg)](#)
 
 <h4>Implementation - Discord</h4>
 
