@@ -1,16 +1,13 @@
 package dynamic
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"os"
 	"time"
 
 	notionapi "github.com/dstotijn/go-notion"
+	"github.com/ethanbaker/horus/utils/config"
 )
 
 // notion.go contains all dynamic notion reminders
@@ -30,29 +27,12 @@ type Event struct {
 	Timespan string
 }
 
-type httpTransport struct {
-	w io.Writer
-}
-
-// RoundTrip implements http.RoundTripper. It multiplexes the read HTTP response
-// data to an io.Writer for debugging.
-func (t *httpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	res, err := http.DefaultTransport.RoundTrip(req)
-	if err != nil {
-		return nil, err
-	}
-
-	res.Body = io.NopCloser(io.TeeReader(res.Body, t.w))
-
-	return res, nil
-}
-
 /* ---- CONSTANTS ---- */
 
 const SCHEDULE_REMINDERS_ERROR_LIMIT = 10
 
 var SCHEDULE_ITEMS = NotionDatabase{
-	ID: os.Getenv("NOTION_DATABASE_SCHEDULE_ID"),
+	ID: "",
 	Query: notionapi.DatabaseQuery{
 		Filter: &notionapi.DatabaseQueryFilter{
 			// 'Day' is checked
@@ -75,25 +55,26 @@ var SCHEDULE_ITEMS = NotionDatabase{
 	},
 }
 
-/* ---- GLOBALS ---- */
+/* ---- INIT ---- */
 
-// The notion client functions will be using
-var notion *notionapi.Client = notionapi.NewClient(os.Getenv("NOTION_API_TOKEN"), notionapi.WithHTTPClient(&http.Client{
-	Timeout:   20 * time.Second,
-	Transport: &httpTransport{w: &bytes.Buffer{}},
-}))
+func NotionInit(c *config.Config) error {
+	// Initialize constants
+	SCHEDULE_ITEMS.ID = c.Getenv("NOTION_DATABASE_SCHEDULE_ID")
+
+	return nil
+}
 
 /* ---- METHODS ---- */
 
 // Get a list of Notion schedule items and add them to the message struct
-func NotionScheduleRemindersUpdate(m *DynamicOutreachMessage) error {
+func NotionScheduleRemindersUpdate(c *config.Config, m *DynamicOutreachMessage) error {
 	var events []Event
 	var mainErr error
 
 	// Run for a given number of times
 	for i := 0; i < SCHEDULE_REMINDERS_ERROR_LIMIT; i++ {
 		// Query the schedule items
-		schedule, err := notion.QueryDatabase(context.Background(), SCHEDULE_ITEMS.ID, &SCHEDULE_ITEMS.Query)
+		schedule, err := c.Notion.QueryDatabase(context.Background(), SCHEDULE_ITEMS.ID, &SCHEDULE_ITEMS.Query)
 		if err != nil {
 			log.Printf("[ERROR]: Error in notion/NotionScheduleReminders, retrying (err: %v)\n", err)
 			continue
@@ -102,7 +83,7 @@ func NotionScheduleRemindersUpdate(m *DynamicOutreachMessage) error {
 		// Loop for each task page
 		for _, p := range schedule.Results {
 			// Get the page property IDs from Notion
-			page, err := notion.FindPageByID(context.Background(), p.ID)
+			page, err := c.Notion.FindPageByID(context.Background(), p.ID)
 			if err != nil {
 				mainErr = err
 				break
@@ -156,7 +137,7 @@ func NotionScheduleRemindersUpdate(m *DynamicOutreachMessage) error {
 }
 
 // Send a message to the user if the
-func NotionScheduleReminders(m *DynamicOutreachMessage, now time.Time) string {
+func NotionScheduleReminders(c *config.Config, m *DynamicOutreachMessage, now time.Time) string {
 	// Get the list of events
 	events, ok := m.data.([]Event)
 	if !ok {

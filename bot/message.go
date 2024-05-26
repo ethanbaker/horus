@@ -1,6 +1,7 @@
 package horus
 
 import (
+	"github.com/ethanbaker/horus/utils/config"
 	openai "github.com/sashabaranov/go-openai"
 	"gorm.io/gorm"
 )
@@ -32,23 +33,26 @@ type Message struct {
 
 	// The openAI message this message is representing
 	ChatCompletionMessage *openai.ChatCompletionMessage `gorm:"-"`
+
+	// The config used for saving this message to the database
+	config *config.Config `gorm:"-"`
 }
 
 // Delete deletes the message from the SQL database
 func (m *Message) Delete() error {
 	// Delete tool calls
 	for _, c := range m.ToolCalls {
-		if err := db.Delete(c).Error; err != nil {
+		if err := m.config.Gorm.Delete(c).Error; err != nil {
 			return err
 		}
 	}
 
 	m.ToolCalls = []ToolCall{}
-	return db.Delete(m).Error
+	return m.config.Gorm.Delete(m).Error
 }
 
 // newMessage creates a new message
-func newMessage(conversationID uint, index uint, message *openai.ChatCompletionMessage) (Message, error) {
+func newMessage(config *config.Config, conversationID uint, index uint, message *openai.ChatCompletionMessage) (Message, error) {
 	// Create the new message
 	m := Message{
 		ConversationID:        conversationID,
@@ -59,6 +63,12 @@ func newMessage(conversationID uint, index uint, message *openai.ChatCompletionM
 		ToolCallID:            message.ToolCallID,
 		ToolCalls:             []ToolCall{},
 		ChatCompletionMessage: message,
+		config:                config,
+	}
+
+	// Save the message
+	if err := m.config.Gorm.Create(&m).Error; err != nil {
+		return m, err
 	}
 
 	// Add function calls to the message
@@ -71,7 +81,7 @@ func newMessage(conversationID uint, index uint, message *openai.ChatCompletionM
 			MessageID:     m.Model.ID,
 		}
 
-		if err := db.Create(&c).Error; err != nil {
+		if err := m.config.Gorm.Create(&c).Error; err != nil {
 			return m, err
 		}
 
@@ -79,5 +89,5 @@ func newMessage(conversationID uint, index uint, message *openai.ChatCompletionM
 	}
 
 	// Save the message to the SQL database and return
-	return m, db.Create(&m).Error
+	return m, nil
 }

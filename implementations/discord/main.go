@@ -13,18 +13,17 @@ import (
 	module_ambient "github.com/ethanbaker/horus/bot/module_ambient"
 	module_config "github.com/ethanbaker/horus/bot/module_config"
 	module_keepass "github.com/ethanbaker/horus/bot/module_keepass"
-	"github.com/sashabaranov/go-openai"
+	horus_config "github.com/ethanbaker/horus/utils/config"
 )
-
-// TODO: instead of calling stuff through a bot, call it through an API
 
 /* -------- GLOBALS -------- */
 
-// The OpenAI client
-var client *openai.Client
-
 // The Horus bot
+// TODO: instead of calling stuff through a bot, call it through an API
 var bot *horus.Bot
+
+// The config for Horus to run off of
+var config *horus_config.Config
 
 // The current conversation in each bot channel
 var currentConversation = make(map[string]*ChannelInfo)
@@ -34,33 +33,39 @@ var currentConversation = make(map[string]*ChannelInfo)
 // main starts the discord bot
 func main() {
 	var err error
+	var errs []error
+
+	// initialize the config
+	config, errs = horus_config.NewConfigFromFile(".env")
+	if len(errs) > 0 {
+		for _, err := range errs {
+			log.Printf("[ERROR]: In discord, error from config (%v)\n", err)
+		}
+		log.Fatalf("[ERROR]: In discord, error reading config. Failing\n")
+	}
+
+	// Initalize the SQL databases
+	if err = horus.InitSQL(config); err != nil {
+		log.Fatalf("[ERROR]: In discord, error initalizing sql (%v)\n", err)
+	}
 
 	// Initialize the current conversation list to begin conversations now
-	for _, channel := range BOT_OPEN_CHANNELS {
+	for _, channel := range config.DiscordOpenChannels {
 		currentConversation[channel] = &ChannelInfo{
 			Name:            fmt.Sprintf("discord-%v-%v", channel, time.Now().UTC().Unix()),
 			LastMessageTime: time.Now().UTC(),
 		}
 	}
 
-	// Initialize the SQl
-	if err = horus.InitSQL(config.FormatDSN()); err != nil {
-		log.Fatal(err)
-	}
-	log.Println("[STATUS]: Successfully initialized SQL")
-
-	// Create the OpenAI client
-	client = openai.NewClient(os.Getenv("OPENAI_TOKEN"))
-
 	// Try to get a bot that we've already created
-	bot, err = horus.GetBotByName("horus-main")
+	bot, err = horus.GetBotByName("horus-main", config)
 	if err != nil {
 		log.Fatalf("[ERROR]: In discord, error getting horus bot (err: %v)\n", err)
 	}
 
 	// If the bot is nil, we need to create one
 	if bot == nil {
-		bot, err = horus.NewBot("horus-main", horus.PERMISSIONS_ALL)
+		bot, err = horus.NewBot("horus-main", horus.PERMISSIONS_ALL, config)
 		if err != nil {
 			log.Fatalf("[ERROR]: In discord, error making horus bot (err: %v)\n", err)
 		}
@@ -71,10 +76,9 @@ func main() {
 	module_ambient.NewModule(bot, true)
 	module_config.NewModule(bot, true)
 	module_keepass.NewModule(bot, true)
-	bot.Setup(client)
 
 	// Create a new Discord session using the provided bot token.
-	dg, err := discordgo.New("Bot " + TOKEN)
+	dg, err := discordgo.New("Bot " + config.Getenv("DISCORD_TOKEN"))
 	if err != nil {
 		log.Fatalf("[ERROR]: In discord, error creating Discord session (err: %v)\n", err)
 	}

@@ -5,13 +5,18 @@ import (
 	"log"
 	"time"
 
+	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
 )
 
 /* ---- INIT ---- */
 
 // Run init functions
-func Init() error {
+func Init(c *config.Config) error {
+	if err := NotionInit(c); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -19,12 +24,12 @@ func Init() error {
 
 // A map of enabled functions in the submodule. New messages can be
 // called using a key in this map
-var enabledFunctions = map[string]func(*DynamicOutreachMessage, time.Time) string{
+var enabledFunctions = map[string]func(*config.Config, *DynamicOutreachMessage, time.Time) string{
 	"notion-schedule-reminders": NotionScheduleReminders,
 }
 
 // A map of associated update functions for each function key
-var updateFunctions = map[string]func(*DynamicOutreachMessage) error{
+var updateFunctions = map[string]func(*config.Config, *DynamicOutreachMessage) error{
 	"notion-schedule-reminders": NotionScheduleRemindersUpdate,
 }
 
@@ -35,11 +40,11 @@ var updateFunctions = map[string]func(*DynamicOutreachMessage) error{
 // dynamic content from a source and then sends messages to the user at any
 // given moment
 type DynamicOutreachMessage struct {
-	Function func(*DynamicOutreachMessage, time.Time) string // The function that will be called repeatedly
-	Channels []chan string                                   // Channels that Horus will send the response to
+	Function func(*config.Config, *DynamicOutreachMessage, time.Time) string // The function that will be called repeatedly
+	Channels []chan string                                                   // Channels that Horus will send the response to
 
-	Update   func(*DynamicOutreachMessage) error // The function to update dynamic content
-	Interval time.Duration                       // How long until successive updates
+	Update   func(*config.Config, *DynamicOutreachMessage) error // The function to update dynamic content
+	Interval time.Duration                                       // How long until successive updates
 
 	stopChan chan bool `gorm:"-"` // Used to stop the message
 	stopped  bool      `gorm:"-"` // Whether or not the task is stopped
@@ -49,8 +54,8 @@ type DynamicOutreachMessage struct {
 	data           any          `gorm:"-"` // The dynamic content this message is getting
 }
 
-func (m *DynamicOutreachMessage) GetContent() string {
-	return m.Function(m, time.Now())
+func (m *DynamicOutreachMessage) GetContent(c *config.Config) string {
+	return m.Function(c, m, time.Now())
 }
 
 func (m *DynamicOutreachMessage) GetChannels() []chan string {
@@ -120,7 +125,7 @@ func New(services *types.OutreachServices, channels []chan string, raw any) (typ
 	}
 
 	// Update the message right now
-	if err := m.Update(&m); err != nil {
+	if err := m.Update(services.Config, &m); err != nil {
 		return nil, err
 	}
 
@@ -132,13 +137,13 @@ func New(services *types.OutreachServices, channels []chan string, raw any) (typ
 			// When the interval ticker goes off, call the update function
 			case <-m.intervalTicker.C:
 				// Update the dynamic content using the update function
-				if err := m.Update(&m); err != nil {
+				if err := m.Update(services.Config, &m); err != nil {
 					log.Printf("[ERROR]: in dynamic/%v, error updating content (err: %v)\n", data.Function, err)
 				}
 
 			case <-m.clock.C:
 				// Check if the user should be sent content
-				if content := m.GetContent(); content != "" {
+				if content := m.GetContent(services.Config); content != "" {
 					for _, c := range m.GetChannels() {
 						c <- content
 					}

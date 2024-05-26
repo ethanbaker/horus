@@ -6,10 +6,9 @@ import (
 
 	"github.com/ethanbaker/horus/outreach/dynamic"
 	"github.com/ethanbaker/horus/outreach/static"
+	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
 	"github.com/robfig/cron/v3"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
 )
 
 /* ---- GLOBALS ---- */
@@ -29,29 +28,23 @@ var channels = map[types.OutreachMethod]chan string{}
 /* ---- METHODS ---- */
 
 // Setup outreach
-func Setup(dsn string) error {
-	// Create the database
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return err
-	}
+func Setup(config *config.Config) error {
+	services.Config = config
+	services.DB = config.Gorm
 
 	// Create the cron service
 	c := cron.New()
 	c.Start()
+	services.Cron = c
 
 	// Create a global clock
 	services.Clock = time.NewTicker(time.Minute)
 
-	// Add them to the services
-	services.DB = db
-	services.Cron = c
-
 	// Run init functions in submodules
-	if err = static.Init(); err != nil {
+	if err := static.Init(services.Config); err != nil {
 		return err
 	}
-	if err = dynamic.Init(); err != nil {
+	if err := dynamic.Init(services.Config); err != nil {
 		return err
 	}
 

@@ -3,6 +3,7 @@ package types
 import (
 	"time"
 
+	"github.com/ethanbaker/horus/utils/config"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
@@ -12,7 +13,7 @@ import (
 // OutreachMessage type is used to encode a message that will be sent to the user through a preferred communication method
 type OutreachMessage interface {
 	// Returns a function that returns the content of the message
-	GetContent() string
+	GetContent(*config.Config) string
 
 	// Return a list of channels to send the message
 	GetChannels() []chan string
@@ -67,7 +68,8 @@ type OutreachConfig struct {
 /* ---- OUTREACH SERVICES ---- */
 
 type OutreachServices struct {
-	DB    *gorm.DB
-	Cron  *cron.Cron
-	Clock *time.Ticker
+	Config *config.Config
+	DB     *gorm.DB
+	Cron   *cron.Cron
+	Clock  *time.Ticker
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/ethanbaker/horus/utils/format"
 	"github.com/ethanbaker/horus/utils/types"
 )
 
@@ -15,7 +16,7 @@ import (
 func onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Determine if this message was sent in an open bot channel
 	valid := false
-	for _, id := range BOT_OPEN_CHANNELS {
+	for _, id := range config.DiscordOpenChannels {
 		if m.ChannelID == id {
 			valid = true
 			break
@@ -81,7 +82,7 @@ func onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	// Format the output
-	output := format(resp.Message)
+	output := format.FormatDiscord(resp.Message)
 
 	// Send the output
 	s.ChannelMessageSend(m.ChannelID, output)

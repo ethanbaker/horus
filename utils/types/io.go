@@ -9,9 +9,10 @@ import (
 
 // Input content to a Horus library
 type Input struct {
-	Message     string // The user's message in plaintext
-	Permissions byte   // The permissions this input send has
-	Data        any    // Any external program data from implementations
+	Message     string  // The user's message in plaintext
+	Permissions byte    // The permissions this input send has
+	Data        any     // Any external program data from implementations
+	Temperature float32 // The temperature of the GPT call to make
 
 	Parameters objx.Map // Function parameters given in a function call by the model
 }
