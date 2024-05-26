@@ -44,6 +44,11 @@ func main() {
 		log.Fatalf("[ERROR]: In discord, error reading config. Failing\n")
 	}
 
+	// Initalize the SQL databases
+	if err = horus.InitSQL(config); err != nil {
+		log.Fatalf("[ERROR]: In discord, error initalizing sql (%v)\n", err)
+	}
+
 	// Initialize the current conversation list to begin conversations now
 	for _, channel := range config.DiscordOpenChannels {
 		currentConversation[channel] = &ChannelInfo{
@@ -53,14 +58,14 @@ func main() {
 	}
 
 	// Try to get a bot that we've already created
-	bot, err = horus.GetBotByName("horus-main")
+	bot, err = horus.GetBotByName("horus-main", config)
 	if err != nil {
 		log.Fatalf("[ERROR]: In discord, error getting horus bot (err: %v)\n", err)
 	}
 
 	// If the bot is nil, we need to create one
 	if bot == nil {
-		bot, err = horus.NewBot("horus-main", horus.PERMISSIONS_ALL)
+		bot, err = horus.NewBot("horus-main", horus.PERMISSIONS_ALL, config)
 		if err != nil {
 			log.Fatalf("[ERROR]: In discord, error making horus bot (err: %v)\n", err)
 		}
@@ -71,11 +76,6 @@ func main() {
 	module_ambient.NewModule(bot, true)
 	module_config.NewModule(bot, true)
 	module_keepass.NewModule(bot, true)
-
-	if err := bot.Setup(config); err != nil {
-		log.Fatalf("[ERROR]: In discord, error setting up bot (%v)\n", err)
-	}
-	log.Println("[STATUS]: Successfully initialized bot")
 
 	// Create a new Discord session using the provided bot token.
 	dg, err := discordgo.New("Bot " + config.Getenv("DISCORD_TOKEN"))

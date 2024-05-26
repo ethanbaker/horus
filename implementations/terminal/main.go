@@ -105,14 +105,14 @@ func main() {
 	}
 
 	// Try to get a bot that we've already created
-	bot, err = horus.GetBotByName("horus-testing")
+	bot, err = horus.GetBotByName("horus-testing", config)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// If the bot is nil, we need to create one
 	if bot == nil {
-		bot, err = horus.NewBot("horus-testing", horus.PERMISSIONS_ALL)
+		bot, err = horus.NewBot("horus-testing", horus.PERMISSIONS_ALL, config)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -122,11 +122,6 @@ func main() {
 	module_ambient.NewModule(bot, true)
 	module_config.NewModule(bot, true)
 	module_keepass.NewModule(bot, true)
-
-	if err := bot.Setup(config); err != nil {
-		log.Fatalf("[ERROR]: In terminal, error setting up bot (%v)\n", err)
-	}
-	log.Println("[STATUS]: Successfully initialized bot")
 
 	// Read user input
 	scanner = bufio.NewScanner(os.Stdin)

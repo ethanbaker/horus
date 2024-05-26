@@ -1,16 +1,17 @@
-package horus_test
+package module_ambient_test
 
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"math"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	horus "github.com/ethanbaker/horus/bot"
+	"github.com/ethanbaker/horus/bot/module_ambient"
 	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -19,11 +20,11 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// NOTE: any instance of 'sqlmock.AnyArg()' is used as a timestamp, since 'time.Now()' is unreliable
+// NOTE: any instance of 'sqlmock.AnyArg()' is used as a timestamp, since 'time.Now()' is unreliable, or as a tool call ID
 
 /* ---- CONSTANTS ---- */
 
-const ENV_FILEPATH = "./testing/.env"
+const ENV_FILEPATH = "../testing/.env"
 
 /* ---- SUITE ---- */
 
@@ -112,9 +113,12 @@ func (s *Suite) BeforeTest(_, _ string) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	s.mock.ExpectCommit()
 
+	// Create the bot
 	s.bot, err = horus.NewBot(name, perms, s.config)
 	assert.Nil(err)
 
+	// Add the module
+	module_ambient.NewModule(s.bot, true)
 }
 
 // Run checks after each test
@@ -126,277 +130,14 @@ func (s *Suite) AfterTest(_, _ string) {
 
 /* ---- SUITE TESTING ---- */
 
-func (s *Suite) TestAddConversation() {
-	assert := assert.New(s.T())
-
-	// Test constants
-	var (
-		name = "test-001"
-	)
-
-	// TEST SQL OUTLINE
-	// - Insert a conversation
-	// - Insert the default first message
-	// - Save the conversation
-	//   - Messages in conversation are inserted or updated on duplicate key
-	// - Save the bot
-	//   - Save the bot's memory
-	//   - Conversations are inserted or updated on duplicate key
-	//     - Messages are inserted or udpated on duplicate key
-
-	// Insert a conversation
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^INSERT INTO `conversations` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	s.mock.ExpectCommit()
-
-	// Insert the default first message
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "").
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	s.mock.ExpectCommit()
-
-	// Save the conversation
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^UPDATE `conversations`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// Messages in conversation are inserted or updated on duplicate key
-	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-	s.mock.ExpectCommit()
-
-	// Save the bot
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^UPDATE `bots`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, s.bot.Name, s.bot.Permissions, 1).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// Save the bot's memory
-	s.mock.ExpectExec("^INSERT INTO `memories` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, "", "", "", 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-
-	// Conversations are inserted or updated on duplicate key
-	s.mock.ExpectExec("^INSERT INTO `conversations`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-
-	// Messages in conversation are inserted or updated on duplicate key
-	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-	s.mock.ExpectCommit()
-
-	// Add a conversation to the bot
-	err := s.bot.AddConversation(name)
-	assert.Nil(err)
-}
-
-func (s *Suite) TestDeleteConversation() {
-	assert := assert.New(s.T())
-
-	// Test constants
-	var (
-		name = "test-001"
-	)
-
-	// TEST SQL OUTLINE
-	// - Insert a conversation
-	// - Insert the default first message
-	// - Save the conversation
-	//   - Messages in conversation are inserted or updated on duplicate key
-	// - Save the bot
-	//   - Save the bot's memory
-	//   - Conversations are inserted or updated on duplicate key
-	//     - Messages are inserted or udpated on duplicate key
-	// - Delete the messages in the conversation by setting `deleted_at` to the current time
-	// - Delete the conversation by setting `deleted_at` to the current time
-
-	// Insert a conversation
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^INSERT INTO `conversations` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	s.mock.ExpectCommit()
-
-	// Insert the default first message
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "").
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	s.mock.ExpectCommit()
-
-	// Save the conversation
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^UPDATE `conversations`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// Messages in conversation are inserted or updated on duplicate key
-	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-	s.mock.ExpectCommit()
-
-	// Save the bot
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^UPDATE `bots`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, s.bot.Name, s.bot.Permissions, 1).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// Save the bot's memory
-	s.mock.ExpectExec("^INSERT INTO `memories` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, "", "", "", 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-
-	// Conversations are inserted or updated on duplicate key
-	s.mock.ExpectExec("^INSERT INTO `conversations`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-
-	// Messages in conversation are inserted or updated on duplicate key
-	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-	s.mock.ExpectCommit()
-
-	// Delete the messages in the conversation by setting `deleted_at` to the current time
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("UPDATE `messages`").
-		WithArgs(sqlmock.AnyArg(), 1).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	s.mock.ExpectCommit()
-
-	// Delete the conversation by setting `deleted_at` to the current time
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("UPDATE `conversations`").
-		WithArgs(sqlmock.AnyArg(), 1).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	s.mock.ExpectCommit()
-
-	// Add a conversation to the bot
-	err := s.bot.AddConversation(name)
-	assert.Nil(err)
-
-	// Delete the conversation from the bot
-	err = s.bot.DeleteConversation(name)
-	assert.Nil(err)
-}
-
-func (s *Suite) TestIsConversation() {
-	assert := assert.New(s.T())
-
-	// Test constants
-	var (
-		name = "test-001"
-	)
-
-	// TEST SQL OUTLINE
-	// - Insert a conversation
-	// - Insert the default first message
-	// - Save the conversation
-	//   - Messages in conversation are inserted or updated on duplicate key
-	// - Save the bot
-	//   - Save the bot's memory
-	//   - Conversations are inserted or updated on duplicate key
-	//     - Messages are inserted or udpated on duplicate key
-
-	// Insert a conversation
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^INSERT INTO `conversations` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	s.mock.ExpectCommit()
-
-	// Insert the default first message
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "").
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	s.mock.ExpectCommit()
-
-	// Save the conversation
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^UPDATE `conversations`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// Messages in conversation are inserted or updated on duplicate key
-	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-	s.mock.ExpectCommit()
-
-	// Save the bot
-	s.mock.ExpectBegin()
-	s.mock.ExpectExec("^UPDATE `bots`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, s.bot.Name, s.bot.Permissions, 1).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// Save the bot's memory
-	s.mock.ExpectExec("^INSERT INTO `memories` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, "", "", "", 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-
-	// Conversations are inserted or updated on duplicate key
-	s.mock.ExpectExec("^INSERT INTO `conversations`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-
-	// Messages in conversation are inserted or updated on duplicate key
-	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
-	s.mock.ExpectCommit()
-
-	// Add a conversation to the bot
-	err := s.bot.AddConversation(name)
-	assert.Nil(err)
-
-	// Make sure the conversation is a real conversation
-	assert.True(s.bot.IsConversation(name))
-
-	// Test invalid keys
-	assert.False(s.bot.IsConversation(""))
-	assert.False(s.bot.IsConversation("invalid"))
-}
-
-// Test EditVariable() and GetVariable()
-func (s *Suite) TestVariables() {
-	assert := assert.New(s.T())
-
-	// Add variables to the bot
-	s.bot.EditVariable("test_variable_1", 0)
-	s.bot.EditVariable("test_variable_2", "abc")
-	s.bot.EditVariable("test_variable_3", float64(0.123))
-
-	// Get variables from the bot and assume equality
-	var1, ok := s.bot.GetVariable("test_variable_1").(int)
-	assert.True(ok)
-	assert.Equal(0, var1)
-
-	var2, ok := s.bot.GetVariable("test_variable_2").(string)
-	assert.True(ok)
-	assert.Equal("abc", var2)
-
-	var3, ok := s.bot.GetVariable("test_variable_3").(float64)
-	assert.True(ok)
-	assert.Equal(0.123, var3)
-}
-
-func (s *Suite) TestSendMessage() {
+func (s *Suite) TestGetCurrentTime() {
 	assert := assert.New(s.T())
 
 	// Test constants
 	var (
 		name  = "test-001"
 		input = types.Input{
-			Message:     "Repeat exactly what I say: hello",
+			Message:     "What is the current time?",
 			Temperature: math.SmallestNonzeroFloat32,
 		}
 	)
@@ -413,7 +154,15 @@ func (s *Suite) TestSendMessage() {
 	// - Insert a sent message
 	// - Save the conversation
 	//   - Messages in conversation are inserted or updated on duplicate key
+	//     - Tool calls in message are inserted or updated on duplicate key
 	// - Insert the received message
+	//   - Insert the received message's tool call
+	// - Save the conversation
+	//   - Messages in conversation are inserted or updated on duplicate key
+	// - Add function call
+	// - Save the conversation
+	//   - Messages in conversation are inserted or updated on duplicate key
+	// - Add function call response message
 	// - Save the conversation
 	//   - Messages in conversation are inserted or updated on duplicate key
 	// - Save the bot's memory
@@ -488,7 +237,52 @@ func (s *Suite) TestSendMessage() {
 	// Insert the received message
 	s.mock.ExpectBegin()
 	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 2, "assistant", "", "Hello", "").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 2, "assistant", "", "", "").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.mock.ExpectCommit()
+
+	// Insert the received message's tool call
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^INSERT INTO `tool_calls` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), nil, "function", "get_current_time", "{}", 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.mock.ExpectCommit()
+
+	// Save the conversation
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^UPDATE `conversations`").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Messages in conversation are inserted or updated on duplicate key
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
+		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
+	s.mock.ExpectCommit()
+
+	// Add function call
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 3, "tool", "get_current_time", sqlmock.AnyArg(), sqlmock.AnyArg()). // AnyArg()'s at the end are for content returned by function and call ID
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.mock.ExpectCommit()
+
+	// Save the conversation
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^UPDATE `conversations`").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Messages in conversation are inserted or updated on duplicate key
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
+		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
+	s.mock.ExpectCommit()
+
+	// Add function call response message
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 4, "assistant", "", sqlmock.AnyArg(), ""). // AnyArg() at second last argument is for bot's response to function call, which will change
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	s.mock.ExpectCommit()
 
@@ -520,18 +314,19 @@ func (s *Suite) TestSendMessage() {
 	assert.Nil(err)
 
 	assert.NotNil(output)
-	assert.Equal("Hello", output.Message)
+	log.Printf("[OUTPUT - get_current_time]: %v\n", output)
 }
 
-func (s *Suite) TestAddMessage() {
+func (s *Suite) TestGetCurrentWeather() {
 	assert := assert.New(s.T())
 
 	// Test constants
 	var (
-		key     = "test-001"
-		role    = "assistant"
-		name    = ""
-		content = "Hello! How may I help you today?"
+		name  = "test-001"
+		input = types.Input{
+			Message:     "What is the current weather in Raleigh?",
+			Temperature: math.SmallestNonzeroFloat32,
+		}
 	)
 
 	// TEST SQL OUTLINE
@@ -543,7 +338,18 @@ func (s *Suite) TestAddMessage() {
 	//   - Save the bot's memory
 	//   - Conversations are inserted or updated on duplicate key
 	//     - Messages are inserted or udpated on duplicate key
-	// - Add a message
+	// - Insert a sent message
+	// - Save the conversation
+	//   - Messages in conversation are inserted or updated on duplicate key
+	//     - Tool calls in message are inserted or updated on duplicate key
+	// - Insert the received message
+	//   - Insert the received message's tool call
+	// - Save the conversation
+	//   - Messages in conversation are inserted or updated on duplicate key
+	// - Add function call
+	// - Save the conversation
+	//   - Messages in conversation are inserted or updated on duplicate key
+	// - Add function call response message
 	// - Save the conversation
 	//   - Messages in conversation are inserted or updated on duplicate key
 	// - Save the bot's memory
@@ -551,7 +357,7 @@ func (s *Suite) TestAddMessage() {
 	// Insert a conversation
 	s.mock.ExpectBegin()
 	s.mock.ExpectExec("^INSERT INTO `conversations` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, key).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	s.mock.ExpectCommit()
 
@@ -565,7 +371,7 @@ func (s *Suite) TestAddMessage() {
 	// Save the conversation
 	s.mock.ExpectBegin()
 	s.mock.ExpectExec("^UPDATE `conversations`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, key, 1).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Messages in conversation are inserted or updated on duplicate key
@@ -587,7 +393,7 @@ func (s *Suite) TestAddMessage() {
 
 	// Conversations are inserted or updated on duplicate key
 	s.mock.ExpectExec("^INSERT INTO `conversations`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, key, 1).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
 		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
 
 	// Messages in conversation are inserted or updated on duplicate key
@@ -596,17 +402,81 @@ func (s *Suite) TestAddMessage() {
 		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
 	s.mock.ExpectCommit()
 
-	// Add a message
+	// Insert a sent message
 	s.mock.ExpectBegin()
 	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 1, role, name, content, "").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 1, "user", "", input.Message, "").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	s.mock.ExpectCommit()
 
 	// Save the conversation
 	s.mock.ExpectBegin()
 	s.mock.ExpectExec("^UPDATE `conversations`").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, key, 1).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Messages in conversation are inserted or updated on duplicate key
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
+		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
+	s.mock.ExpectCommit()
+
+	// Insert the received message
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 2, "assistant", "", "", "").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.mock.ExpectCommit()
+
+	// Insert the received message's tool call
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^INSERT INTO `tool_calls` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), nil, "function", "get_current_weather", sqlmock.AnyArg(), 1). // AnyArg() in the second to last argument is for the model returning various parameters
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.mock.ExpectCommit()
+
+	// Save the conversation
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^UPDATE `conversations`").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Messages in conversation are inserted or updated on duplicate key
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
+		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
+	s.mock.ExpectCommit()
+
+	// Add function call
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 3, "tool", "get_current_weather", sqlmock.AnyArg(), sqlmock.AnyArg()). // AnyArg()'s at the end are for content returned by function and call ID
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.mock.ExpectCommit()
+
+	// Save the conversation
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^UPDATE `conversations`").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Messages in conversation are inserted or updated on duplicate key
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 0, "system", "system", horus.OPENAI_SYSPROMPT, "", 1).
+		WillReturnResult(sqlmock.NewErrorResult(sql.ErrNoRows))
+	s.mock.ExpectCommit()
+
+	// Add function call response message
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 4, "assistant", "", sqlmock.AnyArg(), ""). // AnyArg() at second last argument is for bot's response to function call, which will change
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	s.mock.ExpectCommit()
+
+	// Save the conversation
+	s.mock.ExpectBegin()
+	s.mock.ExpectExec("^UPDATE `conversations`").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, name, 1).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Messages in conversation are inserted or updated on duplicate key
@@ -623,12 +493,15 @@ func (s *Suite) TestAddMessage() {
 	s.mock.ExpectCommit()
 
 	// Add a conversation to the bot
-	err := s.bot.AddConversation(key)
+	err := s.bot.AddConversation(name)
 	assert.Nil(err)
 
-	// Add a message
-	err = s.bot.AddMessage(key, role, name, content)
+	// Send a message
+	output, err := s.bot.SendMessage(name, &input)
 	assert.Nil(err)
+
+	assert.NotNil(output)
+	log.Printf("[OUTPUT - get_current_weather]: %v\n", output)
 }
 
 /* ---- INIT ---- */

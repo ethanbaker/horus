@@ -267,7 +267,7 @@ func update_keepass(bot *horus.Bot, input *types.Input) any {
 	bot.AddQueuedFunctions(update_keepass_step)
 
 	// Return a success message
-	return types.Output{Message: "Updated password profile started. Please enter the title: "}
+	return &types.Output{Message: "Updated password profile started. Please enter the title: "}
 }
 
 // Helper method to repeatedly get information from a password
@@ -430,7 +430,7 @@ func delete_keepass(bot *horus.Bot, input *types.Input) any {
 	bot.AddQueuedFunctions(delete_keepass_step)
 
 	// Return a success message
-	return types.Output{Message: "Delete password profile started. Please enter the title: "}
+	return &types.Output{Message: "Delete password profile started. Please enter the title: "}
 }
 
 // Helper method to repeatedly get information from a password

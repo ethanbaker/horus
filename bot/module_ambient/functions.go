@@ -134,11 +134,16 @@ func get_weather(bot *horus.Bot, input *types.Input) any {
 	location, _ := input.GetString("location", "")
 	unit, _ := input.GetString("unit", "")
 
-	if location == "" {
+	if location == "" && bot.Memory.City != "" {
 		location = bot.Memory.City
+	} else {
+		location = "Davidson"
 	}
-	if unit == "" {
+
+	if unit == "" && bot.Memory.TemperatureUnit != "" {
 		unit = bot.Memory.TemperatureUnit
+	} else {
+		unit = "celsius"
 	}
 
 	// Get the weather conditions

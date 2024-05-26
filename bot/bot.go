@@ -44,17 +44,18 @@ func (b *Bot) AddConversation(key string) error {
 	}
 
 	// Create a new conversation to add
-	c, err := newConversation(b.Model.ID, key)
+	c, err := newConversation(b.Config, b.Model.ID, key)
 	if err != nil {
 		return err
 	}
-	c.setup(b.Config.Openai, &b.functionDefinitions)
+	c.setup(b.Config.Openai)
+	c.addDefinitions(&b.functionDefinitions)
 
 	// Add the conversation to the bot
 	b.Conversations = append(b.Conversations, c)
 
 	// Save the bot
-	return db.Save(&b).Error
+	return b.Config.Gorm.Save(&b).Error
 }
 
 // DeleteConversation delets a conversation from the bot
@@ -105,7 +106,7 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 	}
 
 	// If the conversation does not exist, return error
-	if conversation.Name == "" {
+	if conversation == nil || conversation.Name == "" {
 		return nil, fmt.Errorf("conversation with key '%s' does not exist", key)
 	}
 
@@ -117,7 +118,7 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 	}
 
 	// Get the GPT response
-	resp, err := conversation.SendMessage(openai.ChatMessageRoleUser, "user", input.Message)
+	resp, err := conversation.SendMessage(openai.ChatMessageRoleUser, "", input)
 	if err != nil {
 		return nil, err
 	}
@@ -155,8 +156,13 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 					// Check if output matches the output type. If so, return
 					val, ok := output.(*types.Output)
 					if ok {
-						err = conversation.AddToolResponse(openai.ChatMessageRoleTool, call.Function.Name, val.Message, call.ID)
-						return val, err
+						// Add the tool response to the conversation
+						if err := conversation.AddToolResponse(openai.ChatMessageRoleTool, call.Function.Name, val.Message, call.ID); err != nil {
+							return val, err
+						}
+
+						// Save the memory if tool response was added successfully
+						return val, b.Config.Gorm.Save(&b.Memory).Error
 					}
 
 					// Marshal the output into a string
@@ -191,7 +197,7 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 	output.Message = resp.Choices[0].Message.Content
 
 	// Save any memory changes that may have taken place
-	return &output, db.Save(&b.Memory).Error
+	return &output, b.Config.Gorm.Save(&b.Memory).Error
 }
 
 // Add a message to a conversation
@@ -206,7 +212,7 @@ func (b *Bot) AddMessage(key string, role string, name string, content string) e
 	}
 
 	// If the conversation does not exist, return error
-	if conversation.Name == "" {
+	if conversation == nil || conversation.Name == "" {
 		return fmt.Errorf("conversation with key '%s' does not exist", key)
 	}
 
@@ -215,7 +221,7 @@ func (b *Bot) AddMessage(key string, role string, name string, content string) e
 		return err
 	}
 
-	return db.Save(&b.Memory).Error
+	return b.Config.Gorm.Save(&b.Memory).Error
 }
 
 // Get the next queued function
@@ -245,6 +251,11 @@ func (b *Bot) AddDefinitions(name string, definitions *map[string]openai.Functio
 	for key, f := range *definitions {
 		b.functionDefinitions[fmt.Sprintf("%v-%v", name, key)] = f
 	}
+
+	// Add definitions to each of the conversations
+	for i := range b.Conversations {
+		b.Conversations[i].addDefinitions(&b.functionDefinitions)
+	}
 }
 
 // Writes a value to the variables map
@@ -258,22 +269,31 @@ func (b *Bot) GetVariable(key string) any {
 }
 
 // Setup sets up the bot with an openai Client
-func (b *Bot) Setup(config *config.Config) error {
+func (b *Bot) setup(config *config.Config, isNew bool) error {
 	b.Config = config
-	if err := initSQL(config); err != nil {
-		return err
-	}
 
 	// Set up each associated conversations
 	for i := range b.Conversations {
-		b.Conversations[i].setup(config.Openai, &b.functionDefinitions)
+		b.Conversations[i].setup(config.Openai)
 	}
 
-	return db.Create(&b).Error
+	// If the bot isn't new, don't save it
+	if !isNew {
+		return nil
+	}
+
+	// Save the bot
+	if err := b.Config.Gorm.Create(&b).Error; err != nil {
+		return err
+	}
+
+	// Create and save the memory
+	b.Memory.BotID = b.ID
+	return b.Config.Gorm.Create(&b.Memory).Error
 }
 
 // NewBot creates a new Bot object
-func NewBot(name string, permissions byte) (*Bot, error) {
+func NewBot(name string, permissions byte, cfg *config.Config) (*Bot, error) {
 	// Create the library
 	b := Bot{
 		Name:                name,
@@ -286,5 +306,5 @@ func NewBot(name string, permissions byte) (*Bot, error) {
 		variables:           map[string]any{},
 	}
 
-	return &b, nil
+	return &b, b.setup(cfg, true)
 }

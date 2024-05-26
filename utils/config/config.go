@@ -95,24 +95,25 @@ func (c *Config) setup() []error {
 
 	if user == "" || passwd == "" || net == "" || addr == "" || dbname == "" {
 		errs = append(errs, fmt.Errorf("cannot initialize mysql config; are all 'SQL' fields set?"))
-	}
+	} else {
+		// On success, open the gorm client
+		c.DSN = mysql_driver.Config{
+			User:      user,
+			Passwd:    passwd,
+			Net:       net,
+			Addr:      addr,
+			DBName:    dbname,
+			ParseTime: true,
+			Loc:       time.Local,
+		}
 
-	c.DSN = mysql_driver.Config{
-		User:      user,
-		Passwd:    passwd,
-		Net:       net,
-		Addr:      addr,
-		DBName:    dbname,
-		ParseTime: true,
-		Loc:       time.Local,
-	}
+		gorm, err := gorm.Open(mysql.Open(c.DSN.FormatDSN()), &gorm.Config{})
+		if err != nil {
+			errs = append(errs, fmt.Errorf("cannot initalize gorm client (%v)", err))
+		}
 
-	// Open a database with gorm
-	gorm, err := gorm.Open(mysql.Open(c.DSN.FormatDSN()), &gorm.Config{})
-	if err != nil {
-		errs = append(errs, fmt.Errorf("cannot initalize gorm client (%v)", err))
+		c.Gorm = gorm
 	}
-	c.Gorm = gorm
 
 	// Setup open discord channels
 	openChannels := c.Getenv("DISCORD_BOT_OPEN_CHANNELS")

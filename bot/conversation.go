@@ -3,6 +3,8 @@ package horus
 import (
 	"context"
 
+	"github.com/ethanbaker/horus/utils/config"
+	"github.com/ethanbaker/horus/utils/types"
 	"github.com/sashabaranov/go-openai"
 	"gorm.io/gorm"
 )
@@ -17,6 +19,7 @@ type Conversation struct {
 
 	client  *openai.Client               `gorm:"-"` // The OpenAI client the conversation is attached to
 	request openai.ChatCompletionRequest `gorm:"-"` // The OpenAI request this conversation is emulating
+	config  *config.Config               `gorm:"-"`
 }
 
 // Delete a conversation and all associated messages
@@ -31,7 +34,7 @@ func (c *Conversation) Delete() error {
 
 	// Delete the conversation
 	c.Messages = []Message{}
-	return db.Delete(c).Error
+	return c.config.Gorm.Delete(c).Error
 }
 
 // Append a message to the conversation's request
@@ -42,12 +45,12 @@ func (c *Conversation) appendMessage(m Message) error {
 	c.request.Messages = append(c.request.Messages, *m.ChatCompletionMessage)
 
 	// Save the conversation
-	return db.Save(&c).Error
+	return c.config.Gorm.Save(&c).Error
 }
 
 // Add function call to the conversation
 func (c *Conversation) AddFunctionCall(message *openai.ChatCompletionMessage) error {
-	m, err := newMessage(c.Model.ID, uint(len(c.Messages)), message)
+	m, err := newMessage(c.config, c.Model.ID, uint(len(c.Messages)), message)
 	if err != nil {
 		return err
 	}
@@ -64,7 +67,7 @@ func (c *Conversation) SendFunctionCalls() (*openai.ChatCompletionResponse, erro
 	}
 
 	// Create a new message from the bot and add it to the conversation
-	m, err := newMessage(c.Model.ID, uint(len(c.Messages)), &resp.Choices[0].Message)
+	m, err := newMessage(c.config, c.Model.ID, uint(len(c.Messages)), &resp.Choices[0].Message)
 	if err != nil {
 		return nil, err
 	}
@@ -73,16 +76,16 @@ func (c *Conversation) SendFunctionCalls() (*openai.ChatCompletionResponse, erro
 }
 
 // SendMessage sends a message to OpenAI
-func (c *Conversation) SendMessage(role string, name string, content string) (*openai.ChatCompletionResponse, error) {
+func (c *Conversation) SendMessage(role string, name string, input *types.Input) (*openai.ChatCompletionResponse, error) {
 	// Add the message to the chat completion request
 	chatCompletionMessage := openai.ChatCompletionMessage{
 		Role:    role,
 		Name:    name,
-		Content: content,
+		Content: input.Message,
 	}
 
 	// Create a new message from the user
-	m, err := newMessage(c.Model.ID, uint(len(c.Messages)), &chatCompletionMessage)
+	m, err := newMessage(c.config, c.Model.ID, uint(len(c.Messages)), &chatCompletionMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +96,7 @@ func (c *Conversation) SendMessage(role string, name string, content string) (*o
 	}
 
 	// Get the chat completion
+	c.request.Temperature = input.Temperature
 	resp, err := c.client.CreateChatCompletion(context.Background(), c.request)
 	if err != nil {
 		return nil, err
@@ -104,7 +108,7 @@ func (c *Conversation) SendMessage(role string, name string, content string) (*o
 	}
 
 	// Create a new message from the bot and add it to the conversation
-	m, err = newMessage(c.Model.ID, uint(len(c.Messages)), &resp.Choices[0].Message)
+	m, err = newMessage(c.config, c.Model.ID, uint(len(c.Messages)), &resp.Choices[0].Message)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +126,7 @@ func (c *Conversation) AddMessage(role string, name string, content string) erro
 	}
 
 	// Create a new message from the user
-	m, err := newMessage(c.Model.ID, uint(len(c.Messages)), &chatCompletionMessage)
+	m, err := newMessage(c.config, c.Model.ID, uint(len(c.Messages)), &chatCompletionMessage)
 	if err != nil {
 		return err
 	}
@@ -146,7 +150,7 @@ func (c *Conversation) AddToolResponse(role string, name string, content string,
 	}
 
 	// Create a new message from the user
-	m, err := newMessage(c.Model.ID, uint(len(c.Messages)), &chatCompletionMessage)
+	m, err := newMessage(c.config, c.Model.ID, uint(len(c.Messages)), &chatCompletionMessage)
 	if err != nil {
 		return err
 	}
@@ -160,7 +164,7 @@ func (c *Conversation) AddToolResponse(role string, name string, content string,
 }
 
 // Sets up a conversation with the OpenAI client
-func (c *Conversation) setup(client *openai.Client, functions *map[string]openai.FunctionDefinition) {
+func (c *Conversation) setup(client *openai.Client) {
 	// Setup the client and request
 	c.client = client
 	c.request = openai.ChatCompletionRequest{
@@ -193,7 +197,10 @@ func (c *Conversation) setup(client *openai.Client, functions *map[string]openai
 
 		c.request.Messages = append(c.request.Messages, ccm)
 	}
+}
 
+// addDefinitions adds tool definitions to the conversation
+func (c *Conversation) addDefinitions(functions *map[string]openai.FunctionDefinition) {
 	// Setup the function calls/tools
 	var tools []openai.Tool
 	for k := range *functions {
@@ -209,15 +216,16 @@ func (c *Conversation) setup(client *openai.Client, functions *map[string]openai
 }
 
 // newConversation creates a new conversation
-func newConversation(botID uint, key string) (Conversation, error) {
+func newConversation(config *config.Config, botID uint, key string) (Conversation, error) {
 	// Create the new conversation
 	c := Conversation{
-		BotID: botID,
-		Name:  key,
+		BotID:  botID,
+		Name:   key,
+		config: config,
 	}
 
 	// Save the conversation
-	if res := db.Create(&c); res.Error != nil {
+	if res := config.Gorm.Create(&c); res.Error != nil {
 		return c, res.Error
 	}
 
@@ -228,7 +236,7 @@ func newConversation(botID uint, key string) (Conversation, error) {
 		Content: OPENAI_SYSPROMPT,
 	}
 
-	m, err := newMessage(c.Model.ID, 0, &message)
+	m, err := newMessage(c.config, c.Model.ID, 0, &message)
 	if err != nil {
 		return c, err
 	}
