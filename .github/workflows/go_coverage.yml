@@ -55,7 +55,7 @@ jobs:
 
     - name: test
       working-directory: ${{ matrix.dir }}
-      run: go test -v ./... -coverprofile ./temp/coverage.out
+      run: go test -v -coverpkg=./... -coverprofile=./temp/coverage.out ./... 
 
     - name: get coverage percent
       working-directory: ${{ matrix.dir }}/temp
