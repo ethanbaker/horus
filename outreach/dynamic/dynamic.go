@@ -78,6 +78,7 @@ func (m *DynamicOutreachMessage) Stop() error {
 		return fmt.Errorf("message is already stopped")
 	}
 
+	m.stopped = true
 	m.stopChan <- true
 	return nil
 }

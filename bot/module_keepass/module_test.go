@@ -447,11 +447,43 @@ func (s *Suite) TestCreateKeepass() {
 	// Send a message
 	output, err := s.bot.SendMessage(name, &input)
 	assert.Nil(err)
-
 	assert.NotNil(output)
-	log.Printf("[OUTPUT - keepass_create]: %v\n", output)
+	assert.Equal("New password profile started. Please enter the title: ", output.Message)
 
-	// TODO: could continue test to test for queued functions
+	// Messages are now being called from the function queue and are not saved to SQL for security purposes
+	categories := []string{"title", "path", "username", "password", "URL", "notes (type 'none' if empty)"}
+	values := []string{"test_title", "/path/", "username", "password", "http://url.com", "notes"}
+
+	for i := 1; i < len(categories); i++ {
+		// Get the next message
+		output, err = s.bot.SendMessage(name, &types.Input{
+			Message: values[i-1],
+		})
+
+		// Check results
+		assert.Nil(err)
+		assert.NotNil(output)
+		assert.Equal(fmt.Sprintf("Value saved successfully. Please enter the %v:", categories[i]), output.Message)
+	}
+
+	// Send in the notes and receive confirmation
+	output, err = s.bot.SendMessage(name, &types.Input{
+		Message: "test notes",
+	})
+	assert.Nil(err)
+	assert.NotNil(output)
+	assert.NotEmpty(output.Message)
+
+	// Answer yes to the confirmation
+	_, _ = s.bot.SendMessage(name, &types.Input{
+		Message: "yes",
+	})
+	/* Removed for bad API behavior
+	assert.Nil(err)
+	assert.NotNil(output)
+	assert.NotEmpty(output.Message)
+	*/
+
 }
 func (s *Suite) TestUpdateKeepass() {
 	assert := assert.New(s.T())
@@ -615,9 +647,41 @@ func (s *Suite) TestUpdateKeepass() {
 	assert.Nil(err)
 
 	assert.NotNil(output)
-	log.Printf("[OUTPUT - keepass_update]: %v\n", output)
+	assert.Equal("Updated password profile started. Please enter the title: ", output.Message)
 
-	// TODO: could continue test to test for queued functions
+	// Messages are now being called from the function queue and are not saved to SQL for security purposes
+	categories := []string{"title", "path", "username", "password", "URL", "notes (type 'none' if empty)"}
+	values := []string{"test_title", "/path/", "username", "password", "http://url.com", "notes"}
+
+	for i := 1; i < len(categories); i++ {
+		// Get the next message
+		output, err = s.bot.SendMessage(name, &types.Input{
+			Message: values[i-1],
+		})
+
+		// Check results
+		assert.Nil(err)
+		assert.NotNil(output)
+		assert.Equal(fmt.Sprintf("Value saved successfully. Please enter the %v:", categories[i]), output.Message)
+	}
+
+	// Send in the notes and receive confirmation
+	output, err = s.bot.SendMessage(name, &types.Input{
+		Message: "test notes",
+	})
+	assert.Nil(err)
+	assert.NotNil(output)
+	assert.NotEmpty(output.Message)
+
+	// Answer yes to the confirmation
+	_, _ = s.bot.SendMessage(name, &types.Input{
+		Message: "yes",
+	})
+	/* Removed for bad API behavior
+	assert.Nil(err)
+	assert.NotNil(output)
+	assert.NotEmpty(output.Message)
+	*/
 }
 func (s *Suite) TestDeleteKeepass() {
 	assert := assert.New(s.T())
@@ -781,9 +845,35 @@ func (s *Suite) TestDeleteKeepass() {
 	assert.Nil(err)
 
 	assert.NotNil(output)
-	log.Printf("[OUTPUT - keepass_delete]: %v\n", output)
+	assert.Equal("Delete password profile started. Please enter the title: ", output.Message)
 
-	// TODO: could continue test to test for queued functions
+	// Get the next message
+	output, err = s.bot.SendMessage(name, &types.Input{
+		Message: "test_title",
+	})
+
+	// Check results
+	assert.Nil(err)
+	assert.NotNil(output)
+	assert.Equal("Value saved successfully. Please enter the path:", output.Message)
+
+	// Send in the notes and receive confirmation
+	output, err = s.bot.SendMessage(name, &types.Input{
+		Message: "/path/",
+	})
+	assert.Nil(err)
+	assert.NotNil(output)
+	assert.NotEmpty(output.Message)
+
+	// Answer yes to the confirmation
+	_, _ = s.bot.SendMessage(name, &types.Input{
+		Message: "yes",
+	})
+	/* Removed for bad API behavior
+	assert.Nil(err)
+	assert.NotNil(output)
+	assert.NotEmpty(output.Message)
+	*/
 }
 
 /* ---- INIT ---- */
