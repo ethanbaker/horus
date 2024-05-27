@@ -55,7 +55,7 @@ func (m *StaticOutreachMessage) GetChannels() []chan string {
 
 func (m *StaticOutreachMessage) Start() error {
 	// Make sure the message is stopped
-	if m.stopped {
+	if !m.stopped {
 		return fmt.Errorf("message is still active")
 	}
 
@@ -64,6 +64,7 @@ func (m *StaticOutreachMessage) Start() error {
 		return fmt.Errorf("cron is nil")
 	}
 
+	m.stopped = false
 	m.cronjob.Start()
 	return nil
 }
@@ -79,6 +80,7 @@ func (m *StaticOutreachMessage) Stop() error {
 	}
 
 	// Stop the message
+	m.stopped = true
 	return m.cronjob.Stop().Err()
 }
 
@@ -89,7 +91,7 @@ func (m *StaticOutreachMessage) Delete() error {
 	}
 
 	// Stop the message
-	if err := m.cronjob.Stop().Err(); err != nil {
+	if err := m.Stop(); err != nil {
 		return err
 	}
 
@@ -121,6 +123,7 @@ func New(services *types.OutreachServices, channels []chan string, raw any) (typ
 		Function: f,
 		Repeat:   data.Repeat,
 		Channels: channels,
+		stopped:  false,
 	}
 
 	// Create a new cron job to send the message every interval

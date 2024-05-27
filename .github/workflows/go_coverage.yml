@@ -55,7 +55,7 @@ jobs:
 
     - name: test
       working-directory: ${{ matrix.dir }}
-      run: go test -v ./... -coverprofile ./temp/coverage.out
+      run: go test -v -coverpkg=./... -coverprofile=./temp/coverage.out ./... 
 
     - name: get coverage percent
       working-directory: ${{ matrix.dir }}/temp
@@ -89,20 +89,21 @@ jobs:
       run: |
         rm -rf ./temp
 
-    - name: save coverage badge
-      run: |
-        if [[ `git status --porcelain` ]]
-        then
-        git config user.name github-actions
-        git config user.email github-actions@github.com
-        git add .
-        git commit -am "auto: update dynamic content"
-        git push
-        fi
-
     - name: fail on low coverage
       run: |
         if (( $(echo "$COVERAGE < 70" |bc -l) ))
         then
         exit 1 
+        fi
+
+    - name: save coverage badge
+      run: |
+        if [[ `git status --porcelain` ]]
+        then
+        git pull
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+        git add .
+        git commit -am "auto: update dynamic content"
+        git push
         fi

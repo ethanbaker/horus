@@ -293,7 +293,7 @@ func update_keepass_step(bot *horus.Bot, input *types.Input) *types.Output {
 
 	// Update title
 	case 0:
-		if titleRegex.MatchString(input.Message) {
+		if !titleRegex.MatchString(input.Message) {
 			profile.Title = input.Message
 		} else {
 			output.Error = errors.New("invalid title")
@@ -456,7 +456,7 @@ func delete_keepass_step(bot *horus.Bot, input *types.Input) *types.Output {
 
 	// Update title
 	case 0:
-		if titleRegex.MatchString(input.Message) {
+		if !titleRegex.MatchString(input.Message) {
 			profile.Title = input.Message
 		} else {
 			output.Error = errors.New("invalid title")

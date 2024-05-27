@@ -1,22 +1,32 @@
 module github.com/ethanbaker/horus/outreach
 
 replace github.com/ethanbaker/horus/bot => ../bot
+
 replace github.com/ethanbaker/horus/utils => ../utils
 
 go 1.20
 
-
 require (
 	github.com/arran4/golang-ical v0.2.8
 	github.com/dstotijn/go-notion v0.11.0
-	github.com/ethanbaker/horus/utils v0.0.0-20240419205637-d49093486dd8
-	github.com/robfig/cron/v3 v3.0.0
+	github.com/ethanbaker/horus/utils v0.0.0-20240518002113-b40d7d930369
+	github.com/robfig/cron/v3 v3.0.1
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.5.6
 	gorm.io/gorm v1.25.10
 )
 
-require github.com/joho/godotenv v1.5.1
+require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/joho/godotenv v1.5.1 // indirect
+	github.com/stretchr/testify v1.9.0
+)
+
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/sashabaranov/go-openai v1.22.0 // indirect
+)
 
 require (
 	github.com/bwmarrin/discordgo v0.28.1 // indirect
