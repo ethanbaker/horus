@@ -96,7 +96,7 @@ func main() {
 	var errs []error
 
 	// initialize the config
-	config, errs = horus_config.NewConfigFromFile(".env")
+	config, errs = horus_config.NewConfigFromFile("config/.env")
 	if len(errs) > 0 {
 		for _, err := range errs {
 			log.Printf("[ERROR]: In terminal, error from config (%v)\n", err)

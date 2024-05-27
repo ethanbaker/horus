@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "./implementations/testing",
-            "envFile": "/home/ethanbaker/repos/github.com/ethanbaker/horus/.env"
+            "envFile": "/home/ethanbaker/repos/github.com/ethanbaker/horus/config/.env"
         },
         {
             "name": "Run discord",
@@ -18,7 +18,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "./implementations/discord",
-            "envFile": "/home/ethanbaker/repos/github.com/ethanbaker/horus/.env"
+            "envFile": "/home/ethanbaker/repos/github.com/ethanbaker/horus/config/.env"
         },
     ]
 }

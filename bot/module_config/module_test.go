@@ -12,7 +12,6 @@ import (
 	"github.com/ethanbaker/horus/bot/module_config"
 	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
-	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/driver/mysql"
@@ -24,7 +23,7 @@ import (
 
 /* ---- CONSTANTS ---- */
 
-const ENV_FILEPATH = "../testing/.env"
+const ENV_FILEPATH = "../../testing/.env"
 
 /* ---- SUITE ---- */
 
@@ -61,15 +60,8 @@ func (s *Suite) SetupSuite() {
 	// Log all information about database entries
 	s.DB.Logger.LogMode(logger.Info)
 
-	// Read in an environment file to get variables
-	err = godotenv.Load(ENV_FILEPATH)
-	assert.Nil(err)
-
-	vars, err := godotenv.Read(ENV_FILEPATH)
-	assert.Nil(err)
-
 	// Create a new config with the fake mock service. The only error that should exist is an SQL one
-	cfg, errs := config.NewConfigFromVariables(&vars)
+	cfg, errs := config.NewConfigFromFile(ENV_FILEPATH)
 	assert.Equal(1, len(errs))
 	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
 

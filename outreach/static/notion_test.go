@@ -14,9 +14,10 @@ import (
 func TestNotionDailyDigest(t *testing.T) {
 	assert := assert.New(t)
 
-	// initialize the environment
-	config, errs := config.NewConfigFromFile("./testing/.env")
-	assert.Equal(0, len(errs))
+	// Initialize the environment
+	config, errs := config.NewConfigFromFile("../../testing/.env")
+	assert.Equal(1, len(errs))
+	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
 
 	err := static.Init(config)
 	assert.Nil(err)
@@ -32,9 +33,10 @@ func TestNotionDailyDigest(t *testing.T) {
 func TestNotionNightAffirmations(t *testing.T) {
 	assert := assert.New(t)
 
-	// initialize the environment
-	config, errs := config.NewConfigFromFile("./testing/.env")
-	assert.Equal(0, len(errs))
+	// Initialize the environment
+	config, errs := config.NewConfigFromFile("../../testing/.env")
+	assert.Equal(1, len(errs))
+	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
 
 	err := static.Init(config)
 	assert.Nil(err)
@@ -50,9 +52,10 @@ func TestNotionNightAffirmations(t *testing.T) {
 func TestNotionMorningAffirmations(t *testing.T) {
 	assert := assert.New(t)
 
-	// initialize the environment
-	config, errs := config.NewConfigFromFile("./testing/.env")
-	assert.Equal(0, len(errs))
+	// Initialize the environment
+	config, errs := config.NewConfigFromFile("../../testing/.env")
+	assert.Equal(1, len(errs))
+	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
 
 	err := static.Init(config)
 	assert.Nil(err)

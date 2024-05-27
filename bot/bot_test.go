@@ -11,7 +11,6 @@ import (
 	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/driver/mysql"
@@ -23,7 +22,7 @@ import (
 
 /* ---- CONSTANTS ---- */
 
-const ENV_FILEPATH = "./testing/.env"
+const ENV_FILEPATH = "../testing/.env"
 
 /* ---- SUITE ---- */
 
@@ -60,15 +59,8 @@ func (s *Suite) SetupSuite() {
 	// Log all information about database entries
 	s.DB.Logger.LogMode(logger.Info)
 
-	// Read in an environment file to get variables
-	err = godotenv.Load(ENV_FILEPATH)
-	assert.Nil(err)
-
-	vars, err := godotenv.Read(ENV_FILEPATH)
-	assert.Nil(err)
-
 	// Create a new config with the fake mock service. The only error that should exist is an SQL one
-	cfg, errs := config.NewConfigFromVariables(&vars)
+	cfg, errs := config.NewConfigFromFile(ENV_FILEPATH)
 	assert.Equal(1, len(errs))
 	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
 
@@ -396,7 +388,7 @@ func (s *Suite) TestSendMessage() {
 	var (
 		name  = "test-001"
 		input = types.Input{
-			Message:     "Repeat exactly what I say: hello",
+			Message:     "Repeat exactly what I say in lowercase: hello",
 			Temperature: math.SmallestNonzeroFloat32,
 		}
 	)
@@ -488,7 +480,7 @@ func (s *Suite) TestSendMessage() {
 	// Insert the received message
 	s.mock.ExpectBegin()
 	s.mock.ExpectExec("^INSERT INTO `messages` (.+)").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 2, "assistant", "", "Hello", "").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), nil, 1, 2, "assistant", "", "hello", "").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	s.mock.ExpectCommit()
 
@@ -520,7 +512,7 @@ func (s *Suite) TestSendMessage() {
 	assert.Nil(err)
 
 	assert.NotNil(output)
-	assert.Equal("Hello", output.Message)
+	assert.Equal("hello", output.Message)
 }
 
 func (s *Suite) TestAddMessage() {
