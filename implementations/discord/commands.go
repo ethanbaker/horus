@@ -6,12 +6,13 @@ import (
 	"log"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/ethanbaker/horus/utils/config"
 )
 
 // Add commands to the discord bot
-func addCommands(s *discordgo.Session) error {
+func addCommands(s *discordgo.Session, cfg *config.Config) error {
 	// Add custom commands
-	_, err := s.ApplicationCommandBulkOverwrite(config.Getenv("APP_ID"), config.Getenv("GUILD_ID"), []*discordgo.ApplicationCommand{
+	_, err := s.ApplicationCommandBulkOverwrite(cfg.Getenv("DISCORD_APP_ID"), cfg.Getenv("DISCORD_GUILD_ID"), []*discordgo.ApplicationCommand{
 		{
 			Name:        "conversation",
 			Description: "Create a new conversation with Horus",
@@ -46,7 +47,7 @@ func onCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 func onCommandConversation(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Determine whether or not this command was called from an allowed thread-making channel
 	valid := false
-	for _, id := range config.DiscordThreadChannels {
+	for _, id := range cfg.DiscordThreadChannels {
 		if i.ChannelID == id {
 			valid = true
 			break

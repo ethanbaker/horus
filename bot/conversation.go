@@ -163,10 +163,37 @@ func (c *Conversation) AddToolResponse(role string, name string, content string,
 	return nil
 }
 
+// Remove function calls not matching a given ID. We won't be running the associated function so we need to pretend they didn't exist
+func (c *Conversation) TruncateCalls(id string) {
+	// The bot makes the function call in the last message
+	lastMessage := &c.Messages[len(c.Messages)-1]
+
+	for _, call := range lastMessage.ToolCalls {
+		// If ids match, empty the rest of the tool calls
+		if call.ID == id {
+			lastMessage.ToolCalls = []ToolCall{call}
+			break
+		}
+	}
+
+	// Do the same for the request
+	lastRequest := &c.request.Messages[len(c.request.Messages)-1]
+
+	for _, call := range lastRequest.ToolCalls {
+		// If ids match, empty the rest of the tool calls
+		if call.ID == id {
+			lastRequest.ToolCalls = []openai.ToolCall{call}
+			break
+		}
+	}
+}
+
 // Sets up a conversation with the OpenAI client
-func (c *Conversation) setup(client *openai.Client) {
+func (c *Conversation) setup(config *config.Config) {
+	c.config = config
+
 	// Setup the client and request
-	c.client = client
+	c.client = config.Openai
 	c.request = openai.ChatCompletionRequest{
 		Model:    OPENAI_MODEL,
 		Messages: []openai.ChatCompletionMessage{},
@@ -174,7 +201,10 @@ func (c *Conversation) setup(client *openai.Client) {
 	}
 
 	// Add existing messages to the request
-	for _, m := range c.Messages {
+	for i := 0; i < len(c.Messages); i++ {
+		m := &c.Messages[i]
+		m.setup(config)
+
 		// Create the chat completion message
 		ccm := openai.ChatCompletionMessage{
 			Role:       m.Role,

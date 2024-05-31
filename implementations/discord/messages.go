@@ -16,7 +16,7 @@ import (
 func onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Determine if this message was sent in an open bot channel
 	valid := false
-	for _, id := range config.DiscordOpenChannels {
+	for _, id := range cfg.DiscordOpenChannels {
 		if m.ChannelID == id {
 			valid = true
 			break

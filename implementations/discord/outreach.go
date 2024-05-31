@@ -9,6 +9,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/ethanbaker/horus/outreach"
+	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/format"
 	"github.com/ethanbaker/horus/utils/types"
 	"github.com/sashabaranov/go-openai"
@@ -16,11 +17,11 @@ import (
 )
 
 // Setup Outreach functionality
-func setupOutreach(s *discordgo.Session) error {
+func setupOutreach(s *discordgo.Session, cfg *config.Config) error {
 	var err error
 
 	// Setup outreach
-	if err = outreach.Setup(config); err != nil {
+	if err = outreach.Setup(cfg); err != nil {
 		return err
 	}
 
@@ -33,7 +34,7 @@ func setupOutreach(s *discordgo.Session) error {
 	go onOutreach(s, ch)
 
 	// Read in outreach config
-	yamlFile, err := os.ReadFile(config.Getenv("BASE_PATH") + config.Getenv("OUTREACH_CONFIG"))
+	yamlFile, err := os.ReadFile(cfg.Getenv("BASE_PATH") + cfg.Getenv("OUTREACH_CONFIG"))
 	if err != nil {
 		return err
 	}
@@ -85,12 +86,12 @@ func setupOutreach(s *discordgo.Session) error {
 // Handle messages that should be sent to a user
 func onOutreach(s *discordgo.Session, ch chan string) {
 	// Open a channel to the user
-	channel, err := s.UserChannelCreate(config.Getenv("DISCORD_USER_ID"))
+	channel, err := s.UserChannelCreate(cfg.Getenv("DISCORD_USER_ID"))
 	if err != nil {
 		log.Fatalf("[ERROR]: In discord, error opening up user channel (err: %v)\n", err)
 	}
 
-	config.DiscordOpenChannels = append(config.DiscordOpenChannels, channel.ID)
+	cfg.DiscordOpenChannels = append(cfg.DiscordOpenChannels, channel.ID)
 
 	for {
 		content := <-ch
