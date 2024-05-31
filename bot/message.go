@@ -51,6 +51,11 @@ func (m *Message) Delete() error {
 	return m.config.Gorm.Delete(m).Error
 }
 
+// Set up a message by allowing it access to the config
+func (m *Message) setup(config *config.Config) {
+	m.config = config
+}
+
 // newMessage creates a new message
 func newMessage(config *config.Config, conversationID uint, index uint, message *openai.ChatCompletionMessage) (Message, error) {
 	// Create the new message

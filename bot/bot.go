@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
+	"github.com/ethanbaker/horus/utils/validation"
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/stretchr/objx"
 	"gorm.io/gorm"
@@ -48,7 +49,7 @@ func (b *Bot) AddConversation(key string) error {
 	if err != nil {
 		return err
 	}
-	c.setup(b.Config.Openai)
+	c.setup(b.Config)
 	c.addDefinitions(&b.functionDefinitions)
 
 	// Add the conversation to the bot
@@ -112,6 +113,15 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 
 	// If there is a queued function, run it
 	if qf := b.nextQueuedFunction(); qf != nil {
+		// If the user wants to stop then stop and clear the function queue
+		if validation.ValidateStop(input.Message) {
+			b.clearQueuedFunctions()
+
+			return &types.Output{
+				Message: "Operation stopped",
+			}, nil
+		}
+
 		// A function is queued; get the response directly from the function
 		output = *qf(b, input)
 		return &output, output.Error
@@ -137,6 +147,7 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 		resp.Choices[0].Message.ToolCalls = calls
 
 		// Go through each unique call
+		callResponses := []openai.ChatCompletionMessage{}
 		for _, call := range calls {
 			// Add the call to the conversation
 			if err = conversation.AddFunctionCall(&resp.Choices[0].Message); err != nil {
@@ -156,8 +167,11 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 					// Check if output matches the output type. If so, return
 					val, ok := output.(*types.Output)
 					if ok {
-						// Add the tool response to the conversation
-						if err := conversation.AddToolResponse(openai.ChatMessageRoleTool, call.Function.Name, val.Message, call.ID); err != nil {
+						// Truncate any excess function calls made so they're not unaccounted for
+						conversation.TruncateCalls(call.ID)
+
+						// Add the tool response to the conversation (insert a 'trick' response to get the model to move on)
+						if err := conversation.AddToolResponse(openai.ChatMessageRoleTool, call.Function.Name, `{"message": "Operation successfully completed"}`, call.ID); err != nil {
 							return val, err
 						}
 
@@ -178,12 +192,17 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 						Content:    string(message),
 						ToolCallID: call.ID,
 					}
-					if err = conversation.AddFunctionCall(&callMessage); err != nil {
-						return nil, err
-					}
+					callResponses = append(callResponses, callMessage)
 
 					break
 				}
+			}
+		}
+
+		// If all calls complete without returning input, add the function call messages to the conversation
+		for _, r := range callResponses {
+			if err = conversation.AddFunctionCall(&r); err != nil {
+				return nil, err
 			}
 		}
 
@@ -236,6 +255,10 @@ func (b *Bot) nextQueuedFunction() func(bot *Bot, input *types.Input) *types.Out
 	return f
 }
 
+func (b *Bot) clearQueuedFunctions() {
+	b.functionQueue = []func(bot *Bot, input *types.Input) *types.Output{}
+}
+
 // Add a list of functions to the function queue
 func (b *Bot) AddQueuedFunctions(funcs ...func(bot *Bot, input *types.Input) *types.Output) {
 	b.functionQueue = append(b.functionQueue, funcs...)
@@ -274,7 +297,7 @@ func (b *Bot) setup(config *config.Config, isNew bool) error {
 
 	// Set up each associated conversations
 	for i := range b.Conversations {
-		b.Conversations[i].setup(config.Openai)
+		b.Conversations[i].setup(config)
 	}
 
 	// If the bot isn't new, don't save it

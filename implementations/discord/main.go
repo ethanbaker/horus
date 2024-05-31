@@ -13,7 +13,7 @@ import (
 	module_ambient "github.com/ethanbaker/horus/bot/module_ambient"
 	module_config "github.com/ethanbaker/horus/bot/module_config"
 	module_keepass "github.com/ethanbaker/horus/bot/module_keepass"
-	horus_config "github.com/ethanbaker/horus/utils/config"
+	"github.com/ethanbaker/horus/utils/config"
 )
 
 /* -------- GLOBALS -------- */
@@ -22,35 +22,41 @@ import (
 // TODO: instead of calling stuff through a bot, call it through an API
 var bot *horus.Bot
 
-// The config for Horus to run off of
-var config *horus_config.Config
-
 // The current conversation in each bot channel
 var currentConversation = make(map[string]*ChannelInfo)
+
+// The config the bot is running off of
+var cfg *config.Config
 
 /* ------------------ MAIN ------------------ */
 
 // main starts the discord bot
 func main() {
 	var err error
-	var errs []error
 
-	// initialize the config
-	config, errs = horus_config.NewConfigFromFile("config/.env")
+	// Get the path to read (default to 'config/.env' on no environment variable)
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "config/.env"
+	}
+
+	// Initialize the config
+	conf, errs := config.NewConfigFromFile(path)
 	if len(errs) > 0 {
 		for _, err := range errs {
 			log.Printf("[ERROR]: In discord, error from config (%v)\n", err)
 		}
 		log.Fatalf("[ERROR]: In discord, error reading config. Failing\n")
 	}
+	cfg = conf
 
 	// Initalize the SQL databases
-	if err = horus.InitSQL(config); err != nil {
+	if err = horus.InitSQL(cfg); err != nil {
 		log.Fatalf("[ERROR]: In discord, error initalizing sql (%v)\n", err)
 	}
 
 	// Initialize the current conversation list to begin conversations now
-	for _, channel := range config.DiscordOpenChannels {
+	for _, channel := range cfg.DiscordOpenChannels {
 		currentConversation[channel] = &ChannelInfo{
 			Name:            fmt.Sprintf("discord-%v-%v", channel, time.Now().UTC().Unix()),
 			LastMessageTime: time.Now().UTC(),
@@ -58,14 +64,14 @@ func main() {
 	}
 
 	// Try to get a bot that we've already created
-	bot, err = horus.GetBotByName("horus-main", config)
+	bot, err = horus.GetBotByName("horus-main", cfg)
 	if err != nil {
 		log.Fatalf("[ERROR]: In discord, error getting horus bot (err: %v)\n", err)
 	}
 
 	// If the bot is nil, we need to create one
 	if bot == nil {
-		bot, err = horus.NewBot("horus-main", horus.PERMISSIONS_ALL, config)
+		bot, err = horus.NewBot("horus-main", horus.PERMISSIONS_ALL, cfg)
 		if err != nil {
 			log.Fatalf("[ERROR]: In discord, error making horus bot (err: %v)\n", err)
 		}
@@ -78,7 +84,7 @@ func main() {
 	module_keepass.NewModule(bot, true)
 
 	// Create a new Discord session using the provided bot token.
-	dg, err := discordgo.New("Bot " + config.Getenv("DISCORD_TOKEN"))
+	dg, err := discordgo.New("Bot " + cfg.Getenv("DISCORD_TOKEN"))
 	if err != nil {
 		log.Fatalf("[ERROR]: In discord, error creating Discord session (err: %v)\n", err)
 	}
@@ -88,8 +94,15 @@ func main() {
 	dg.AddHandler(onThreadMessageCreate)
 	dg.AddHandler(onCommand)
 
+	// Open a websocket connection to discord
+	err = dg.Open()
+	if err != nil {
+		log.Fatalf("[ERROR]: In discord, error opening connection (err: %v)\n", err)
+	}
+	log.Println("[STATUS]: Successfully connected to discord")
+
 	// Add commands
-	if err := addCommands(dg); err != nil {
+	if err := addCommands(dg, cfg); err != nil {
 		log.Fatalf("[ERROR]: In discord, error creating Discord commands (err: %v)\n", err)
 	}
 
@@ -97,17 +110,10 @@ func main() {
 	dg.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAll)
 
 	// Setup outreach
-	if err := setupOutreach(dg); err != nil {
+	if err := setupOutreach(dg, cfg); err != nil {
 		log.Fatalf("[ERROR]: In discord, error setting up outreach (err: %v)\n", err)
 	}
 	log.Println("[STATUS]: Successfully set up outreach")
-
-	// Open a websocket connection to discord
-	err = dg.Open()
-	if err != nil {
-		log.Fatalf("[ERROR]: In discord, error opening connection (err: %v)\n", err)
-	}
-	log.Println("[STATUS]: Successfully set up discord")
 
 	// Update the status of the bot
 	//dg.UpdateGameStatus(0, "Type '!help' for help")

@@ -9,16 +9,20 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "./implementations/testing",
-            "envFile": "/home/ethanbaker/repos/github.com/ethanbaker/horus/config/.env"
+            "program": "${workspaceFolder}/implementations/testing",
+            "env": {
+                "CONFIG_PATH": "${workspaceFolder}/config/.env"
+            }
         },
         {
             "name": "Run discord",
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "./implementations/discord",
-            "envFile": "/home/ethanbaker/repos/github.com/ethanbaker/horus/config/.env"
+            "program": "${workspaceFolder}/implementations/discord",
+            "env": {
+                "CONFIG_PATH": "${workspaceFolder}/config/.env"
+            }
         },
     ]
 }

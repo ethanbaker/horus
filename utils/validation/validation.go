@@ -7,6 +7,8 @@ import "strings"
 
 // Validate an intent for confirmation
 func ValidateConfirmation(message string) bool {
+	message = strings.ToLower(message)
+
 	for _, word := range yesWords {
 		for _, w := range strings.Split(message, " ") {
 			if w == word {
@@ -20,6 +22,8 @@ func ValidateConfirmation(message string) bool {
 
 // Validate an intent for denial
 func ValidateDenial(message string) bool {
+	message = strings.ToLower(message)
+
 	for _, word := range noWords {
 		for _, w := range strings.Split(message, " ") {
 			if w == word {
@@ -33,6 +37,8 @@ func ValidateDenial(message string) bool {
 
 // Validate an intent to stop
 func ValidateStop(message string) bool {
+	message = strings.ToLower(message)
+
 	for _, word := range stopWords {
 		for _, w := range strings.Split(message, " ") {
 			if w == word {
