@@ -14,9 +14,8 @@ func TestNotionScheduleReminders(t *testing.T) {
 	assert := assert.New(t)
 
 	// Initialize the environment
-	config, errs := config.NewConfigFromFile("../../testing/.env")
-	assert.Equal(1, len(errs))
-	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
+	config, errs := config.New()
+	assert.Equal(0, len(errs))
 
 	err := dynamic.Init(config)
 	assert.Nil(err)
@@ -31,6 +30,5 @@ func TestNotionScheduleReminders(t *testing.T) {
 	output := dynamic.NotionScheduleReminders(config, &m, time.Now())
 	assert.NotNil(output)
 
-	log.Println("Received output: ")
-	log.Printf("%#v\n", output)
+	log.Printf("[RESULT]: Received output `%v`\n", output)
 }

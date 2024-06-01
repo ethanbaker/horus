@@ -14,11 +14,10 @@ func TestPing(t *testing.T) {
 	assert := assert.New(t)
 
 	// Initialize the environment (there should be one error for SQL, as we don't need it)
-	config, errs := config.NewConfigFromFile("../../testing/.env")
-	assert.Equal(1, len(errs))
-	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
+	config, errs := config.New()
+	assert.Equal(0, len(errs))
 
 	// Run the test
-	output := static.Ping(config)
+	output := static.Ping(config, map[string]any{})
 	assert.Equal("Ping!", output)
 }

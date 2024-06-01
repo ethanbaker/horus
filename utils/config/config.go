@@ -4,7 +4,10 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,7 +21,7 @@ import (
 
 // Config type is used to hold configuration and set on initialization
 type Config struct {
-	variables *map[string]string // Variables stored in the environment
+	variables map[string]string // Variables stored in the environment
 
 	// Config globals
 	Openai                *openai.Client      // The OpenAI client
@@ -35,14 +38,15 @@ func (c *Config) Setenv(key string, value string) error {
 		return fmt.Errorf("environment key cannot be empty")
 	}
 
-	(*c.variables)[key] = value
+	c.variables[key] = value
 	return nil
 }
 
 // Get a single environment variable
 func (c *Config) Getenv(key string) string {
-	str, ok := (*c.variables)[key]
+	str, ok := c.variables[key]
 	if !ok {
+		log.Printf("[WARN]: attempting to get invalid key '%v'\n", key)
 		return ""
 	}
 
@@ -62,15 +66,17 @@ func (c *Config) loadFromFile(filename string) []error {
 		return []error{err}
 	}
 
-	c.variables = &vars
-	return c.setup()
-}
+	// Add the variables
+	for k, v := range vars {
+		c.variables[k] = v
+	}
 
-// Set the config variables to a map
-func (c *Config) loadFromVariables(vars *map[string]string) []error {
-	c.variables = vars
-
-	return c.setup()
+	// If we are running in a pipeline, we don't care about setting up all services, so ignore errors
+	errs := c.setup()
+	if c.Getenv("MODE") != "cicd" {
+		return errs
+	}
+	return []error{}
 }
 
 // Setup globals in the config. We return a list of errors in case a testing function doesn't
@@ -78,6 +84,8 @@ func (c *Config) loadFromVariables(vars *map[string]string) []error {
 // testing we check for unexpected ones
 func (c *Config) setup() []error {
 	var errs []error
+
+	// If we
 
 	// Setup the OpenAI Client
 	openaiToken := c.Getenv("OPENAI_TOKEN")
@@ -142,14 +150,74 @@ func (c *Config) setup() []error {
 	return errs
 }
 
-// Create a new config from an environment file
-func NewConfigFromFile(filename string) (*Config, []error) {
+// Create a new config.
+func New() (*Config, []error) {
 	c := Config{}
-	return &c, c.loadFromFile(filename)
-}
+	c.variables = map[string]string{}
 
-// Create a new config with no file
-func NewConfigFromVariables(vars *map[string]string) (*Config, []error) {
-	c := Config{}
-	return &c, c.loadFromVariables(vars)
+	// Get the working directory
+	path, err := os.Getwd()
+	if err != nil {
+		return nil, []error{err}
+	}
+
+	// Walk up the tree until we find the go.work file at the root of the project
+	for {
+		// Check if the go.work file exists in the current directory
+		goWorkPath := filepath.Join(path, "go.work")
+		_, err := os.Stat(goWorkPath)
+		if err == nil {
+			// Found the go.work file
+			break
+		}
+
+		// Move up one directory
+		parent := filepath.Dir(path)
+		// Check if we reached the root directory
+		if parent == path {
+			return nil, []error{fmt.Errorf("go.work file cannot be found")}
+		}
+		path = parent
+	}
+
+	env := ""
+	if os.Getenv("ENV_PATH") != "" {
+		// If a 'ENV_PATH' flag is set, use that as the path instead
+		env = os.Getenv("ENV_PATH")
+		c.Setenv("MODE", "test")
+	} else {
+		// By default, load './testing/.env.test'
+		// If mode = 'dev', load './testing/.env.dev'
+		// If mode = 'cicd', load './testing/.env.cicd'
+		// If mode = 'prod', load './config/.env.prod'
+		switch os.Getenv("MODE") {
+		case "prod":
+			path = filepath.Join(path, "config/")
+			env = ".env.prod"
+
+		case "dev":
+			path = filepath.Join(path, "config/")
+			env = ".env.dev"
+
+		case "cicd":
+			path = filepath.Join(path, "testing/")
+			env = ".env.cicd"
+
+		case "test":
+			fallthrough
+		default:
+			path = filepath.Join(path, "testing/")
+			env = ".env.test"
+		}
+
+		// Set base level environment variables
+		c.Setenv("MODE", "test")
+		if mode := os.Getenv("MODE"); mode != "" {
+			c.Setenv("MODE", mode)
+		}
+	}
+
+	c.Setenv("BASE_PATH", path)
+
+	return &c, c.loadFromFile(filepath.Join(path, env))
 }

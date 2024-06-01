@@ -1,18 +1,20 @@
 static:
   - name: notion-daily-digest
-    key: discord
-    repeat: "0 10 * * *"
+    channels: [ discord ]
+    data:
+      function: notion-daily-digest
+      repeat: "0 10 * * *"
   
-  - name: notion-night-affirmations
-    key: discord
-    repeat: "0 23 * * *"
-
-  - name: notion-morning-affirmations
-    key: discord
-    repeat: "0 11 * * *"
-
+  - name: notion-read-page
+    channels: [ discord ]
+    data:
+      function: notion-read-page
+      repeat: "0 23 * * *"
+      page-id: example_test_page_id
 
 dynamic:
   - name: notion-schedule-reminders
-    key: discord
-    interval: 5
+    channels: [ discord ]
+    data:
+      function: notion-schedule-reminders
+      interval: 5

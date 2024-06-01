@@ -20,10 +20,6 @@ import (
 
 // NOTE: any instance of 'sqlmock.AnyArg()' is used as a timestamp, since 'time.Now()' is unreliable
 
-/* ---- CONSTANTS ---- */
-
-const ENV_FILEPATH = "../testing/.env"
-
 /* ---- SUITE ---- */
 
 // Suite struct holds all globals and setup/teardown methods for tests
@@ -60,10 +56,10 @@ func (s *Suite) SetupSuite() {
 	s.DB.Logger.LogMode(logger.Info)
 
 	// Create a new config with the fake mock service. The only error that should exist is an SQL one
-	cfg, errs := config.NewConfigFromFile(ENV_FILEPATH)
-	assert.Equal(1, len(errs))
-	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
+	cfg, errs := config.New()
+	assert.Equal(0, len(errs))
 
+	// NOTE: could have better method to transfer in fake (for here and modules)
 	cfg.Gorm = s.DB
 	s.config = cfg
 

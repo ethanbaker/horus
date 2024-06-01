@@ -34,14 +34,8 @@ var cfg *config.Config
 func main() {
 	var err error
 
-	// Get the path to read (default to 'config/.env' on no environment variable)
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "config/.env"
-	}
-
 	// Initialize the config
-	conf, errs := config.NewConfigFromFile(path)
+	conf, errs := config.New()
 	if len(errs) > 0 {
 		for _, err := range errs {
 			log.Printf("[ERROR]: In discord, error from config (%v)\n", err)
@@ -49,6 +43,12 @@ func main() {
 		log.Fatalf("[ERROR]: In discord, error reading config. Failing\n")
 	}
 	cfg = conf
+
+	// If we are running in test mode, warn the user. Implementations are usually designed to run in 'dev' or 'prod' mode
+	mode := cfg.Getenv("MODE")
+	if mode == "test" || mode == "cicd" {
+		log.Printf("[WARN]: In discord, running in '%v' mode. Is this intended?", mode)
+	}
 
 	// Initalize the SQL databases
 	if err = horus.InitSQL(cfg); err != nil {

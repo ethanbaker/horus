@@ -1,2 +1,4 @@
 *.env
+*.env.*
+!.env.test_file
 /config/

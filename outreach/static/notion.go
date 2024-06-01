@@ -6,12 +6,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"reflect"
+	"path/filepath"
 	"time"
 
 	ics "github.com/arran4/golang-ical"
 	notionapi "github.com/dstotijn/go-notion"
 	"github.com/ethanbaker/horus/utils/config"
+	"github.com/ethanbaker/horus/utils/notion"
 	"github.com/ethanbaker/horus/utils/types"
 	"github.com/teambition/rrule-go"
 	"gopkg.in/yaml.v3"
@@ -247,6 +248,9 @@ var NIGHT_AFFIRMATIONS_PAGE = ""
 
 /* ---- GLOBALS ---- */
 
+// Calendar config list
+var calendarConfig types.CalendarConfig
+
 // Calendars for parsing iCal formats
 var calendars []*ics.Calendar
 
@@ -261,40 +265,19 @@ func NotionInit(c *config.Config) error {
 	CRITICAL_TASKS.ID = c.Getenv("NOTION_DATABASE_TASKS_ID")
 	SCHEDULE_ITEMS.ID = c.Getenv("NOTION_DATABASE_SCHEDULE_ID")
 	RECURRING_TASKS.ID = c.Getenv("NOTION_DATABASE_RECURRING_ID")
-	MORNING_AFFIRMATIONS_PAGE = c.Getenv("NOTION_PAGE_MORNING_AFFIRMATIONS")
-	NIGHT_AFFIRMATIONS_PAGE = c.Getenv("NOTION_PAGE_NIGHT_AFFIRMATIONS")
 
 	// Read in calendar config
-	yamlFile, err := os.ReadFile(c.Getenv("BASE_PATH") + c.Getenv("CALENDAR_CONFIG"))
+	yamlFile, err := os.ReadFile(filepath.Join(c.Getenv("BASE_PATH"), c.Getenv("CALENDAR_CONFIG")))
 	if err != nil {
 		return err
 	}
 
-	var config types.CalendarConfig
-	if err = yaml.Unmarshal(yamlFile, &config); err != nil {
+	if err = yaml.Unmarshal(yamlFile, &calendarConfig); err != nil {
 		return err
 	}
 
-	// Repeat for each calendar
-	for _, cal := range config.Calendars {
-		// Get the URL
-		resp, err := http.Get(cal.URL)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-
-		// Create the calendar
-		c, err := ics.ParseCalendar(resp.Body)
-		if err != nil {
-			return err
-		}
-
-		calendars = append(calendars, c)
-	}
-
 	// Load the format location
-	formatLoc, err = time.LoadLocation(config.TimezoneFormat)
+	formatLoc, err = time.LoadLocation(calendarConfig.TimezoneFormat)
 	if err != nil {
 		return err
 	}
@@ -305,11 +288,31 @@ func NotionInit(c *config.Config) error {
 /* ---- METHODS ---- */
 
 // NotionDailyDigest formats a long, digest string for the user to read with tons of information from Notion
-func NotionDailyDigest(c *config.Config) string {
+func NotionDailyDigest(c *config.Config, _ map[string]any) string {
 	var output string
 	var err error
 
-	// Run for a given number of times
+	// Get calendar events
+	for _, cal := range calendarConfig.Calendars {
+		// Get the URL
+		resp, err := http.Get(cal.URL)
+		if err != nil {
+			log.Printf("[ERROR]: Error in notion/NotionDailyDigest getting calendar URLs (err: %v)\n", err)
+			return "Error fetching calendars"
+		}
+		defer resp.Body.Close()
+
+		// Create the calendar
+		c, err := ics.ParseCalendar(resp.Body)
+		if err != nil {
+			log.Printf("[ERROR]: Error in notion/NotionDailyDigest parsing calendars (err: %v)\n", err)
+			return "Error parsing calendars"
+		}
+
+		calendars = append(calendars, c)
+	}
+
+	// Run generator for a given number of times
 	for i := 0; i < DIGEST_ERROR_LIMIT; i++ {
 		output, err = getNotionDailyDigest(c)
 
@@ -328,11 +331,9 @@ func NotionDailyDigest(c *config.Config) string {
 func getNotionDailyDigest(c *config.Config) (string, error) {
 	var output string
 
-	loc := time.UTC
-
 	// Find 'today' in the calendar's timezone (assuming there is only one)
-	year, month, day := time.Now().In(loc).Date()
-	today := time.Date(year, month, day, 0, 0, 0, 0, loc)
+	year, month, day := time.Now().In(formatLoc).Date()
+	today := time.Date(year, month, day, 0, 0, 0, 0, formatLoc)
 
 	// Get calendar information
 	calendarEvents := []Event{}
@@ -346,6 +347,12 @@ func getNotionDailyDigest(c *config.Config) (string, error) {
 			end, endNotPresent := event.GetEndAt()
 			startDay, _ := event.GetAllDayStartAt()
 			endDay, endDayNotPresent := event.GetAllDayEndAt()
+
+			// Convert to local timezone
+			start = start.In(formatLoc)
+			end = end.In(formatLoc)
+			startDay = startDay.In(formatLoc)
+			endDay = endDay.In(formatLoc)
 
 			// Determine whether this is an all day event
 			allDayEvent := start.Equal(startDay) && end.Equal(endDay)
@@ -365,7 +372,7 @@ func getNotionDailyDigest(c *config.Config) (string, error) {
 				if allDayEvent {
 					// For all day events, set to the base date of start
 					year, month, day := start.Date()
-					rule.DTStart(time.Date(year, month, day, 0, 0, 0, 0, loc))
+					rule.DTStart(time.Date(year, month, day, 0, 0, 0, 0, formatLoc))
 				} else {
 					// For normal events, just set to start
 					rule.DTStart(start)
@@ -384,7 +391,7 @@ func getNotionDailyDigest(c *config.Config) (string, error) {
 						if err != nil {
 							continue
 						}
-						t = t.In(loc)
+						t = t.In(formatLoc)
 
 						// If time is equal to start time reject
 						if start.Truncate(24 * time.Hour).Equal(t.Truncate(24 * time.Hour)) {
@@ -396,10 +403,6 @@ func getNotionDailyDigest(c *config.Config) (string, error) {
 			}
 
 			if allDayEvent {
-				// Convert the start and end days into a form that compares well with 'today'
-				startDay = startDay.In(loc)
-				endDay = endDay.In(loc)
-
 				// Add an all day event
 				if (today.After(startDay) || today.Equal(startDay)) && today.Before(endDay) {
 					calendarEvents = append(calendarEvents, Event{
@@ -631,90 +634,31 @@ func getNotionDailyDigest(c *config.Config) (string, error) {
 	return output, nil
 }
 
-// NotionNightAffirmations returns the night affirmations stored in Notion
-func NotionNightAffirmations(c *config.Config) string {
-	var output string
-	var err error
+// Read a page from notion
+func NotionReadPage(c *config.Config, data map[string]any) string {
+	// Unmarshal the Notion ID from the data
+	id, ok := data["page-id"].(string)
+	if !ok {
+		return "[ERROR]: in NotionReadPage, invalid page ID"
+	}
 
 	// Run for a given number of times
+	var (
+		output string
+		err    error
+	)
 	for i := 0; i < DIGEST_ERROR_LIMIT; i++ {
-		output, err = getAffirmations(c, NIGHT_AFFIRMATIONS_PAGE)
+		output, err = notion.ParsePage(c.Notion, id)
 
 		// On no error, return the output
 		if err == nil {
 			return output
 		}
-		log.Printf("[ERROR]: Error in notion/NotionNightAffrimations, retrying (err: %v)\n", err)
+		log.Printf("[ERROR]: Error in notion/NotionReadPage, retrying (err: %v)\n", err)
 	}
 
 	// Return the last error if we only fail
-	return fmt.Sprintf("Error getting Notion Night Affirmations\n<BLOCKQUOTE>Error Message: %v", err)
-}
-
-// NotionMorningAffirmations returns the morning affirmations stored in Notion
-func NotionMorningAffirmations(c *config.Config) string {
-	var output string
-	var err error
-
-	// Run for a given number of times
-	for i := 0; i < DIGEST_ERROR_LIMIT; i++ {
-		output, err = getAffirmations(c, MORNING_AFFIRMATIONS_PAGE)
-
-		// On no error, return the output
-		if err == nil {
-			return output
-		}
-		log.Printf("[ERROR]: Error in notion/NotionMorningAffrimations, retrying (err: %v)\n", err)
-	}
-
-	// Return the last error if we only fail
-	return fmt.Sprintf("Error getting Notion Morning Affirmations\n<BLOCKQUOTE>Error Message: %v", err)
-}
-
-// getAffirmations sends the night affirmations page in Notion
-func getAffirmations(c *config.Config, id string) (string, error) {
-	// Get the page from notion
-	page, err := c.Notion.FindBlockChildrenByID(context.Background(), id, &notionapi.PaginationQuery{
-		StartCursor: "",
-		PageSize:    100,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	// For each block contribute to the output
-	output := "<STRONG>Affirmations:<STRONG>\n\n"
-	for _, raw := range page.Results {
-		switch block := raw.(type) {
-		// For headings, add strong text
-		case *notionapi.Heading1Block:
-			if len(block.RichText) > 0 {
-				output += fmt.Sprintf("<STRONG>%v<STRONG>\n", block.RichText[0].Text.Content)
-			}
-
-		case *notionapi.Heading2Block:
-			if len(block.RichText) > 0 {
-				output += fmt.Sprintf("<STRONG>%v<STRONG>\n", block.RichText[0].Text.Content)
-			}
-
-		case *notionapi.Heading3Block:
-			if len(block.RichText) > 0 {
-				output += fmt.Sprintf("<STRONG>%v<STRONG>\n", block.RichText[0].Text.Content)
-			}
-
-		// For normal text
-		case *notionapi.ParagraphBlock:
-			if len(block.RichText) > 0 {
-				output += fmt.Sprintf("%v\n", block.RichText[0].Text.Content)
-			}
-
-		// For unknown blocks, print out a log message
-		default:
-			log.Printf("[WARN]: unhandled block type %v\n", reflect.TypeOf(block))
-		}
-	}
-
-	return output, nil
+	return fmt.Sprintf("Error getting Notion page\n<BLOCKQUOTE>Error Message: %v", err)
 }
 
 /* ---- HELPER FUNCTIONS ---- */

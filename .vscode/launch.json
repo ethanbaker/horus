@@ -5,24 +5,56 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run testing",
+            "name": "Run terminal (DEV)",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/implementations/testing",
             "env": {
-                "CONFIG_PATH": "${workspaceFolder}/config/.env"
-            }
+                "MODE": "dev",
+            },
         },
         {
-            "name": "Run discord",
+            "name": "Run discord (DEV)",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/implementations/discord",
             "env": {
-                "CONFIG_PATH": "${workspaceFolder}/config/.env"
-            }
+                "MODE": "dev",
+            },
+        },
+        {
+            "name": "Run discord (PROD)",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/implementations/discord",
+            "env": {
+                "MODE": "prod",
+            },
+        },
+        {
+            "name": "CICD Test File",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${file}",
+            "env": {
+                "MODE": "cicd",
+            },
+            "showLog": true,
+        },
+        {
+            "name": "Dev Test File",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${file}",
+            "env": {
+                "MODE": "dev",
+            },
+            "showLog": true,
         },
     ]
 }

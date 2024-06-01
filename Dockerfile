@@ -22,6 +22,7 @@ WORKDIR /go/src/app
 RUN go build -o discord_main ./implementations/discord
 
 # Run the executable
+ENV MODE=prod
 CMD [ "/go/src/app/discord_main" ]
 
 # Commands to build and run:

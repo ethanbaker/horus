@@ -15,55 +15,35 @@ func TestNotionDailyDigest(t *testing.T) {
 	assert := assert.New(t)
 
 	// Initialize the environment
-	config, errs := config.NewConfigFromFile("../../testing/.env")
-	assert.Equal(1, len(errs))
-	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
+	config, errs := config.New()
+	assert.Equal(0, len(errs))
 
 	err := static.Init(config)
 	assert.Nil(err)
 
 	// Run the function
-	output := static.NotionDailyDigest(config)
+	output := static.NotionDailyDigest(config, map[string]any{})
 	assert.NotNil(output)
 
-	log.Println("Received output: ")
-	log.Println(output)
+	// NOTE: the received output won't sort the all day events correctly because the test database lies and says past events are today
+	log.Printf("[RESULT]: Received output `%v`\n", output)
 }
 
-func TestNotionNightAffirmations(t *testing.T) {
+func TestNotionReadPage(t *testing.T) {
 	assert := assert.New(t)
 
 	// Initialize the environment
-	config, errs := config.NewConfigFromFile("../../testing/.env")
-	assert.Equal(1, len(errs))
-	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
+	config, errs := config.New()
+	assert.Equal(0, len(errs))
 
 	err := static.Init(config)
 	assert.Nil(err)
 
 	// Run the function
-	output := static.NotionNightAffirmations(config)
+	output := static.NotionReadPage(config, map[string]any{
+		"page-id": config.Getenv("NOTION_TEST_PAGE"),
+	})
 	assert.NotNil(output)
 
-	log.Println("Received output: ")
-	log.Println(output)
-}
-
-func TestNotionMorningAffirmations(t *testing.T) {
-	assert := assert.New(t)
-
-	// Initialize the environment
-	config, errs := config.NewConfigFromFile("../../testing/.env")
-	assert.Equal(1, len(errs))
-	assert.Equal("cannot initialize mysql config; are all 'SQL' fields set?", errs[0].Error())
-
-	err := static.Init(config)
-	assert.Nil(err)
-
-	// Run the function
-	output := static.NotionMorningAffirmations(config)
-	assert.NotNil(output)
-
-	log.Println("Received output: ")
-	log.Println(output)
+	log.Printf("[RESULT]: Received output \n`%v`\n", output)
 }
