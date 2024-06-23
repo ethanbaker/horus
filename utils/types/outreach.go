@@ -30,43 +30,53 @@ type OutreachMessage interface {
 
 /* ---- OUTREACH METHODS ---- */
 
+// OutreachMethods represent different methods a user can be connected to
 type OutreachMethod string
 
 const (
-	Discord  OutreachMethod = "discord"
-	Telegram OutreachMethod = "telegram"
+	DiscordMethod  OutreachMethod = "discord"
+	TelegramMethod OutreachMethod = "telegram"
+	SmsMethod      OutreachMethod = "sms"
 )
 
-/* ---- OUTREACH INPUT ---- */
+/* ---- OUTREACH MODULES ---- */
 
-type StaticOutreach struct {
-	Function string
-	Repeat   string
-}
+// OutreachModule represent different types of outreach messages that can be used
+type OutreachModule string
 
-type DynamicOutreach struct {
-	Function        string
-	IntervalMinutes time.Duration
-}
+const (
+	StaticModule  OutreachModule = "static"
+	DynamicModule OutreachModule = "dynamic"
+	TimerModule   OutreachModule = "timer"
+)
 
 /* ---- OUTREACH CONFIG ---- */
+// OutreachConfig types are used to read in the 'outreach.yml' config file
 
-type OutreachConfig struct {
-	Static []struct {
-		Name   string `yaml:"name"`
-		Key    string `yaml:"key"`
-		Repeat string `yaml:"repeat"`
-	} `yaml:"static"`
-
-	Dynamic []struct {
-		Name            string `yaml:"name"`
-		Key             string `yaml:"key"`
-		IntervalMinutes int    `yaml:"interval"`
-	} `yaml:"dynamic"`
+type OutreachConfigMessage struct {
+	Name     string           `yaml:"name"`
+	Channels []OutreachMethod `yaml:"channels"`
+	Data     map[string]any   `yaml:"data"`
 }
 
-/* ---- OUTREACH SERVICES ---- */
+type OutreachConfig struct {
+	Static []OutreachConfigMessage `yaml:"static"`
 
+	Dynamic []OutreachConfigMessage `yaml:"dynamic"`
+}
+
+/* ---- OUTREACH MANAGER ---- */
+
+// OutreachManager
+type OutreachManager struct {
+	Config   *config.Config
+	Services *OutreachServices
+	Modules  map[OutreachModule]func(*OutreachManager, []chan string, map[string]any) (OutreachMessage, error)
+	Channels map[OutreachMethod]chan string
+	Messages map[string]OutreachMessage
+}
+
+// OutreachServices hold vital services for outreach messages to perform their operations
 type OutreachServices struct {
 	Config *config.Config
 	DB     *gorm.DB

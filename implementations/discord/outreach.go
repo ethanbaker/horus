@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -34,7 +35,7 @@ func setupOutreach(s *discordgo.Session, cfg *config.Config) error {
 	go onOutreach(s, ch)
 
 	// Read in outreach config
-	yamlFile, err := os.ReadFile(cfg.Getenv("BASE_PATH") + cfg.Getenv("OUTREACH_CONFIG"))
+	yamlFile, err := os.ReadFile(filepath.Join(cfg.Getenv("BASE_PATH"), cfg.Getenv("OUTREACH_CONFIG")))
 	if err != nil {
 		return err
 	}
@@ -46,36 +47,28 @@ func setupOutreach(s *discordgo.Session, cfg *config.Config) error {
 
 	// Add the static outreaches if they match this implementation key
 	for _, msg := range outreachConfig.Static {
-		// Only add keys that contain discord
-		if msg.Key != "discord" {
-			continue
+		// Only add messages for discord outreaches
+		forDiscord := false
+		for i := 0; i < len(msg.Channels) && !forDiscord; i++ {
+			forDiscord = forDiscord || msg.Channels[i] == types.DiscordMethod
 		}
 
 		// Add the outreach
-		_, err = outreach.New("static", []types.OutreachMethod{types.Discord}, types.StaticOutreach{
-			Function: msg.Name,
-			Repeat:   msg.Repeat,
-		})
-
-		if err != nil {
+		if err := outreach.New(types.StaticModule, msg.Name, msg.Channels, msg.Data); err != nil {
 			return err
 		}
 	}
 
 	// Add the dynamic outreaches if they match this implementation key
 	for _, msg := range outreachConfig.Dynamic {
-		// Only add keys that contain discord
-		if msg.Key != "discord" {
-			continue
+		// Only add messages for discord outreaches
+		forDiscord := false
+		for i := 0; i < len(msg.Channels) && !forDiscord; i++ {
+			forDiscord = forDiscord || msg.Channels[i] == types.DiscordMethod
 		}
 
 		// Add the outreach
-		_, err = outreach.New("dynamic", []types.OutreachMethod{types.Discord}, types.DynamicOutreach{
-			Function:        msg.Name,
-			IntervalMinutes: time.Minute * time.Duration(msg.IntervalMinutes),
-		})
-
-		if err != nil {
+		if err := outreach.New(types.DynamicModule, msg.Name, msg.Channels, msg.Data); err != nil {
 			return err
 		}
 	}

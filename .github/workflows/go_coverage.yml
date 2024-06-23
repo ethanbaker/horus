@@ -21,23 +21,22 @@ jobs:
     - name: make env file
       shell: bash
       run: |
-        touch ./testing/.env
-        echo 'BASE_PATH="${{ secrets.BASE_PATH }}"' >> ./testing/.env
-        echo 'CALENDAR_CONFIG="${{ secrets.CALENDAR_CONFIG }}"' >> ./testing/.env
-        echo 'KEEPASS_BASE_URL="${{ secrets.KEEPASS_BASE_URL }}"' >> ./testing/.env
-        echo 'KEEPASS_TOKEN="${{ secrets.KEEPASS_TOKEN }}"' >> ./testing/.env
-        echo 'NOTION_API_TOKEN="${{ secrets.NOTION_API_TOKEN }}"' >> ./testing/.env
-        echo 'NOTION_DATABASE_RECURRING_ID="${{ secrets.NOTION_DATABASE_RECURRING_ID }}"' >> ./testing/.env
-        echo 'NOTION_DATABASE_SCHEDULE_ID="${{ secrets.NOTION_DATABASE_SCHEDULE_ID }}"' >> ./testing/.env
-        echo 'NOTION_DATABASE_TASKS_ID="${{ secrets.NOTION_DATABASE_TASKS_ID }}"' >> ./testing/.env
-        echo 'NOTION_PAGE_MORNING_AFFIRMATIONS="${{ secrets.NOTION_PAGE_MORNING_AFFIRMATIONS }}"' >> ./testing/.env
-        echo 'NOTION_PAGE_NIGHT_AFFIRMATIONS="${{ secrets.NOTION_PAGE_NIGHT_AFFIRMATIONS }}"' >> ./testing/.env
-        echo 'OPENAI_TOKEN="${{ secrets.OPENAI_TOKEN }}"' >> ./testing/.env
-        echo 'OUTREACH_CONFIG="${{ secrets.OUTREACH_CONFIG }}"' >> ./testing/.env
-        echo 'WEATHER_BASE_URL="${{ secrets.WEATHER_BASE_URL }}"' >> ./testing/.env
-        echo 'WEATHER_TOKEN="${{ secrets.WEATHER_TOKEN }}"' >> ./testing/.env
-        echo 'DISCORD_BOT_OPEN_CHANNELS="${{ vars.DISCORD_BOT_OPEN_CHANNELS }}"' >> ./testing/.env
-        echo 'DISCORD_BOT_THREAD_CHANNELS="${{ vars.DISCORD_BOT_THREAD_CHANNELS }}"' >> ./testing/.env
+        touch ./testing/.env.cicd
+        echo 'BASE_PATH="${{ secrets.BASE_PATH }}"' >> ./testing/.env.cicd
+        echo 'CALENDAR_CONFIG="${{ secrets.CALENDAR_CONFIG }}"' >> ./testing/.env.cicd
+        echo 'KEEPASS_BASE_URL="${{ secrets.KEEPASS_BASE_URL }}"' >> ./testing/.env.cicd
+        echo 'KEEPASS_TOKEN="${{ secrets.KEEPASS_TOKEN }}"' >> ./testing/.env.cicd
+        echo 'NOTION_API_TOKEN="${{ secrets.NOTION_API_TOKEN }}"' >> ./testing/.env.cicd
+        echo 'NOTION_DATABASE_RECURRING_ID="${{ secrets.NOTION_DATABASE_RECURRING_ID }}"' >> ./testing/.env.cicd
+        echo 'NOTION_DATABASE_SCHEDULE_ID="${{ secrets.NOTION_DATABASE_SCHEDULE_ID }}"' >> ./testing/.env.cicd
+        echo 'NOTION_DATABASE_TASKS_ID="${{ secrets.NOTION_DATABASE_TASKS_ID }}"' >> ./testing/.env.cicd
+        echo 'NOTION_TEST_PAGE="${{ secrets.NOTION_TEST_PAGE }}"' >> ./testing/.env.cicd
+        echo 'OPENAI_TOKEN="${{ secrets.OPENAI_TOKEN }}"' >> ./testing/.env.cicd
+        echo 'OUTREACH_CONFIG="${{ secrets.OUTREACH_CONFIG }}"' >> ./testing/.env.cicd
+        echo 'WEATHER_BASE_URL="${{ secrets.WEATHER_BASE_URL }}"' >> ./testing/.env.cicd
+        echo 'WEATHER_TOKEN="${{ secrets.WEATHER_TOKEN }}"' >> ./testing/.env.cicd
+        echo 'DISCORD_BOT_OPEN_CHANNELS="${{ vars.DISCORD_BOT_OPEN_CHANNELS }}"' >> ./testing/.env.cicd
+        echo 'DISCORD_BOT_THREAD_CHANNELS="${{ vars.DISCORD_BOT_THREAD_CHANNELS }}"' >> ./testing/.env.cicd
 
     - name: setup workspace
       working-directory: ${{ matrix.dir }}
@@ -56,6 +55,8 @@ jobs:
     - name: test
       working-directory: ${{ matrix.dir }}
       run: go test -v -coverpkg=./... -coverprofile=./temp/coverage.out ./... 
+      env:
+        MODE: cicd
 
     - name: get coverage percent
       working-directory: ${{ matrix.dir }}/temp
