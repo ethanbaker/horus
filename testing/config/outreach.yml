@@ -1,0 +1,20 @@
+static:
+  - name: notion-daily-digest
+    channels: [ discord ]
+    data:
+      function: notion-daily-digest
+      repeat: "0 10 * * *"
+  
+  - name: notion-read-page
+    channels: [ discord ]
+    data:
+      function: notion-read-page
+      repeat: "0 23 * * *"
+      page-id: example_test_page_id
+
+dynamic:
+  - name: notion-schedule-reminders
+    channels: [ discord ]
+    data:
+      function: notion-schedule-reminders
+      interval: 5

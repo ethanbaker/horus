@@ -1,0 +1,110 @@
+name: Go Coverage Testing
+
+on: [ push ]
+
+permissions:
+  contents: write
+
+jobs:
+  coverage_test:
+    name: Coverage Test
+    runs-on: ubuntu-latest
+    environment: Default Environment
+
+    strategy:
+      fail-fast: false
+      matrix: { dir: ['utils', 'bot', 'outreach']}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: make env file
+      shell: bash
+      run: |
+        touch ./testing/.env.cicd
+        echo 'BASE_PATH="${{ secrets.BASE_PATH }}"' >> ./testing/.env.cicd
+        echo 'CALENDAR_CONFIG="${{ secrets.CALENDAR_CONFIG }}"' >> ./testing/.env.cicd
+        echo 'KEEPASS_BASE_URL="${{ secrets.KEEPASS_BASE_URL }}"' >> ./testing/.env.cicd
+        echo 'KEEPASS_TOKEN="${{ secrets.KEEPASS_TOKEN }}"' >> ./testing/.env.cicd
+        echo 'NOTION_API_TOKEN="${{ secrets.NOTION_API_TOKEN }}"' >> ./testing/.env.cicd
+        echo 'NOTION_DATABASE_RECURRING_ID="${{ secrets.NOTION_DATABASE_RECURRING_ID }}"' >> ./testing/.env.cicd
+        echo 'NOTION_DATABASE_SCHEDULE_ID="${{ secrets.NOTION_DATABASE_SCHEDULE_ID }}"' >> ./testing/.env.cicd
+        echo 'NOTION_DATABASE_TASKS_ID="${{ secrets.NOTION_DATABASE_TASKS_ID }}"' >> ./testing/.env.cicd
+        echo 'NOTION_TEST_PAGE="${{ secrets.NOTION_TEST_PAGE }}"' >> ./testing/.env.cicd
+        echo 'OPENAI_TOKEN="${{ secrets.OPENAI_TOKEN }}"' >> ./testing/.env.cicd
+        echo 'OUTREACH_CONFIG="${{ secrets.OUTREACH_CONFIG }}"' >> ./testing/.env.cicd
+        echo 'WEATHER_BASE_URL="${{ secrets.WEATHER_BASE_URL }}"' >> ./testing/.env.cicd
+        echo 'WEATHER_TOKEN="${{ secrets.WEATHER_TOKEN }}"' >> ./testing/.env.cicd
+        echo 'DISCORD_BOT_OPEN_CHANNELS="${{ vars.DISCORD_BOT_OPEN_CHANNELS }}"' >> ./testing/.env.cicd
+        echo 'DISCORD_BOT_THREAD_CHANNELS="${{ vars.DISCORD_BOT_THREAD_CHANNELS }}"' >> ./testing/.env.cicd
+
+    - name: setup workspace
+      working-directory: ${{ matrix.dir }}
+      shell: bash
+      run: mkdir ./temp
+
+    - name: set up go
+      uses: actions/setup-go@v4
+      with:
+        go-version: stable
+
+    - name: build
+      working-directory: ${{ matrix.dir }}
+      run: go build -v ./...
+
+    - name: test
+      working-directory: ${{ matrix.dir }}
+      run: go test -v -coverpkg=./... -coverprofile=./temp/coverage.out ./... 
+      env:
+        MODE: cicd
+
+    - name: get coverage percent
+      working-directory: ${{ matrix.dir }}/temp
+      shell: bash
+      run: |
+        echo "COVERAGE=$(go tool cover -func=coverage.out | grep total: | grep -Eo '[0-9]+\.[0-9]+')" >> $GITHUB_ENV
+
+    - name: get badge color
+      working-directory: ${{ matrix.dir }}/temp
+      shell: bash
+      run: |
+        if (( $(echo "$COVERAGE >= 85" |bc -l) ))
+        then
+        echo "COLOR=green" >> $GITHUB_ENV
+        elif (( $(echo "$COVERAGE < 70" |bc -l) ))
+        then
+        echo "COLOR=red" >> $GITHUB_ENV
+        else
+        echo "COLOR=orange" >> $GITHUB_ENV
+        fi
+      
+    - name: generate coverage badge
+      working-directory: ${{ matrix.dir }}/temp
+      shell: bash
+      run: |
+        curl "https://img.shields.io/badge/coverage-$( echo $COVERAGE )%25-$( echo $COLOR )" > ../../docs/${{ matrix.dir }}-coverage.svg
+
+    - name: cleanup
+      working-directory: ${{ matrix.dir }}
+      shell: bash
+      run: |
+        rm -rf ./temp
+
+    - name: fail on low coverage
+      run: |
+        if (( $(echo "$COVERAGE < 70" |bc -l) ))
+        then
+        exit 1 
+        fi
+
+    - name: save coverage badge
+      run: |
+        if [[ `git status --porcelain` ]]
+        then
+        git pull
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+        git add .
+        git commit -am "auto: update dynamic content"
+        git push
+        fi

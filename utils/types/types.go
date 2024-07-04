@@ -1,3 +1,4 @@
+// Package types is used to hold global types used all throughout Horus
 package types
 
 /* ---- MODULE INTERFACE ---- */

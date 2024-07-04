@@ -1,13 +1,19 @@
-// validation validates given messages for a given intent
+// Package validation validates given messages for a given intent
 package validation
+
+// TODO: perform stronger word analysis than checking against word bank
 
 import "strings"
 
 // Validate an intent for confirmation
 func ValidateConfirmation(message string) bool {
+	message = strings.ToLower(message)
+
 	for _, word := range yesWords {
-		if strings.Contains(message, word) {
-			return true
+		for _, w := range strings.Split(message, " ") {
+			if w == word {
+				return true
+			}
 		}
 	}
 
@@ -16,9 +22,13 @@ func ValidateConfirmation(message string) bool {
 
 // Validate an intent for denial
 func ValidateDenial(message string) bool {
+	message = strings.ToLower(message)
+
 	for _, word := range noWords {
-		if strings.Contains(message, word) {
-			return true
+		for _, w := range strings.Split(message, " ") {
+			if w == word {
+				return true
+			}
 		}
 	}
 
@@ -27,9 +37,13 @@ func ValidateDenial(message string) bool {
 
 // Validate an intent to stop
 func ValidateStop(message string) bool {
+	message = strings.ToLower(message)
+
 	for _, word := range stopWords {
-		if strings.Contains(message, word) {
-			return true
+		for _, w := range strings.Split(message, " ") {
+			if w == word {
+				return true
+			}
 		}
 	}
 

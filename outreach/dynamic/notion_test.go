@@ -6,34 +6,29 @@ import (
 	"time"
 
 	"github.com/ethanbaker/horus/outreach/dynamic"
-	"github.com/joho/godotenv"
+	"github.com/ethanbaker/horus/utils/config"
+	"github.com/stretchr/testify/assert"
 )
 
-/* ---- UPDATE TESTS ---- */
-
-func TestNotionScheduleRemindersUpdate(t *testing.T) {
-	log.Println(dynamic.NotionScheduleRemindersUpdate(&dynamic.DynamicOutreachMessage{}))
-}
-
-/* ---- MESSAGE TESTS ---- */
-
 func TestNotionScheduleReminders(t *testing.T) {
-	log.Println(dynamic.NotionScheduleReminders(&dynamic.DynamicOutreachMessage{}, time.Now()))
-}
+	assert := assert.New(t)
 
-/* ---- MAIN ---- */
+	// Initialize the environment
+	config, errs := config.New()
+	assert.Equal(0, len(errs))
 
-func TestMain(m *testing.M) {
-	// Initalize the environment
-	if err := godotenv.Load("../../.env"); err != nil {
-		log.Fatal(err)
-	}
+	err := dynamic.Init(config)
+	assert.Nil(err)
 
-	// Initialize the module
-	if err := dynamic.Init(); err != nil {
-		log.Fatal(err)
-	}
+	m := dynamic.DynamicOutreachMessage{}
 
-	// Run the tests
-	m.Run()
+	// Run the update function
+	err = dynamic.NotionScheduleRemindersUpdate(config, &m)
+	assert.Nil(err)
+
+	// Run the content function
+	output := dynamic.NotionScheduleReminders(config, &m, time.Now())
+	assert.NotNil(output)
+
+	log.Printf("[RESULT]: Received output `%v`\n", output)
 }

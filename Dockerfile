@@ -22,8 +22,9 @@ WORKDIR /go/src/app
 RUN go build -o discord_main ./implementations/discord
 
 # Run the executable
+ENV MODE=prod
 CMD [ "/go/src/app/discord_main" ]
 
 # Commands to build and run:
 # docker build --tag horus .
-# docker run -d --network="host" --name horus --env-file .env horus
+# docker run -d --network="host" --name horus --env-file config/.env horus

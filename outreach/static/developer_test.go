@@ -1,26 +1,23 @@
 package static_test
 
 import (
-	"log"
 	"testing"
 
 	"github.com/ethanbaker/horus/outreach/static"
-	"github.com/joho/godotenv"
+	"github.com/ethanbaker/horus/utils/config"
+	"github.com/stretchr/testify/assert"
 )
 
 /* ---- MESSAGE TESTS ---- */
 
 func TestPing(t *testing.T) {
-	// Initalize the environment
-	if err := godotenv.Load("../../.env"); err != nil {
-		log.Fatal(err)
-	}
+	assert := assert.New(t)
 
-	// Initialize the module
-	if err := static.Init(); err != nil {
-		log.Fatal(err)
-	}
+	// Initialize the environment (there should be one error for SQL, as we don't need it)
+	config, errs := config.New()
+	assert.Equal(0, len(errs))
 
 	// Run the test
-	log.Println(static.Ping())
+	output := static.Ping(config, map[string]any{})
+	assert.Equal("Ping!", output)
 }

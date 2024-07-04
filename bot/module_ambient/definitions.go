@@ -34,6 +34,7 @@ var functionDefinitions = map[string]openai.FunctionDefinition{
 					Enum: []string{"celsius", "fahrenheit"},
 				},
 			},
+			Required: []string{},
 		},
 	},
 }

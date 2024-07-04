@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ethanbaker/horus/utils/config"
 	"github.com/ethanbaker/horus/utils/types"
+	"github.com/ethanbaker/horus/utils/validation"
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/stretchr/objx"
 	"gorm.io/gorm"
@@ -19,8 +21,8 @@ type Bot struct {
 	Memory        Memory         // Static memory associated with a bot
 	Conversations []Conversation // A list of conversations with the user
 
-	// Initalized variables (don't change after creation)
-	client              *openai.Client                                  `gorm:"-"` // The OpenAI client
+	// initialized variables (don't change after creation)
+	Config              *config.Config                                  `gorm:"-"` // The configuration that the bot runs on
 	functionDefinitions map[string]openai.FunctionDefinition            `gorm:"-"` // Function definitions to plug into GPT prompts
 	handlers            []func(function string, input *types.Input) any `gorm:"-"` // A list of handlers from associated modules
 
@@ -43,17 +45,18 @@ func (b *Bot) AddConversation(key string) error {
 	}
 
 	// Create a new conversation to add
-	c, err := newConversation(b.Model.ID, key)
+	c, err := newConversation(b.Config, b.Model.ID, key)
 	if err != nil {
 		return err
 	}
-	c.setup(b.client, &b.functionDefinitions)
+	c.setup(b.Config)
+	c.addDefinitions(&b.functionDefinitions)
 
 	// Add the conversation to the bot
 	b.Conversations = append(b.Conversations, c)
 
 	// Save the bot
-	return db.Save(&b).Error
+	return b.Config.Gorm.Save(&b).Error
 }
 
 // DeleteConversation delets a conversation from the bot
@@ -104,19 +107,28 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 	}
 
 	// If the conversation does not exist, return error
-	if conversation.Name == "" {
+	if conversation == nil || conversation.Name == "" {
 		return nil, fmt.Errorf("conversation with key '%s' does not exist", key)
 	}
 
 	// If there is a queued function, run it
 	if qf := b.nextQueuedFunction(); qf != nil {
+		// If the user wants to stop then stop and clear the function queue
+		if validation.ValidateStop(input.Message) {
+			b.clearQueuedFunctions()
+
+			return &types.Output{
+				Message: "Operation stopped",
+			}, nil
+		}
+
 		// A function is queued; get the response directly from the function
 		output = *qf(b, input)
 		return &output, output.Error
 	}
 
 	// Get the GPT response
-	resp, err := conversation.SendMessage(openai.ChatMessageRoleUser, "user", input.Message)
+	resp, err := conversation.SendMessage(openai.ChatMessageRoleUser, "", input)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +147,7 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 		resp.Choices[0].Message.ToolCalls = calls
 
 		// Go through each unique call
+		callResponses := []openai.ChatCompletionMessage{}
 		for _, call := range calls {
 			// Add the call to the conversation
 			if err = conversation.AddFunctionCall(&resp.Choices[0].Message); err != nil {
@@ -154,7 +167,16 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 					// Check if output matches the output type. If so, return
 					val, ok := output.(*types.Output)
 					if ok {
-						return val, val.Error
+						// Truncate any excess function calls made so they're not unaccounted for
+						conversation.TruncateCalls(call.ID)
+
+						// Add the tool response to the conversation (insert a 'trick' response to get the model to move on)
+						if err := conversation.AddToolResponse(openai.ChatMessageRoleTool, call.Function.Name, `{"message": "Operation successfully completed"}`, call.ID); err != nil {
+							return val, err
+						}
+
+						// Save the memory if tool response was added successfully
+						return val, b.Config.Gorm.Save(&b.Memory).Error
 					}
 
 					// Marshal the output into a string
@@ -170,12 +192,17 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 						Content:    string(message),
 						ToolCallID: call.ID,
 					}
-					if err = conversation.AddFunctionCall(&callMessage); err != nil {
-						return nil, err
-					}
+					callResponses = append(callResponses, callMessage)
 
 					break
 				}
+			}
+		}
+
+		// If all calls complete without returning input, add the function call messages to the conversation
+		for _, r := range callResponses {
+			if err = conversation.AddFunctionCall(&r); err != nil {
+				return nil, err
 			}
 		}
 
@@ -189,7 +216,7 @@ func (b *Bot) SendMessage(key string, input *types.Input) (*types.Output, error)
 	output.Message = resp.Choices[0].Message.Content
 
 	// Save any memory changes that may have taken place
-	return &output, db.Save(&b.Memory).Error
+	return &output, b.Config.Gorm.Save(&b.Memory).Error
 }
 
 // Add a message to a conversation
@@ -204,7 +231,7 @@ func (b *Bot) AddMessage(key string, role string, name string, content string) e
 	}
 
 	// If the conversation does not exist, return error
-	if conversation.Name == "" {
+	if conversation == nil || conversation.Name == "" {
 		return fmt.Errorf("conversation with key '%s' does not exist", key)
 	}
 
@@ -213,7 +240,7 @@ func (b *Bot) AddMessage(key string, role string, name string, content string) e
 		return err
 	}
 
-	return db.Save(&b.Memory).Error
+	return b.Config.Gorm.Save(&b.Memory).Error
 }
 
 // Get the next queued function
@@ -226,6 +253,10 @@ func (b *Bot) nextQueuedFunction() func(bot *Bot, input *types.Input) *types.Out
 	b.functionQueue = b.functionQueue[1:]
 
 	return f
+}
+
+func (b *Bot) clearQueuedFunctions() {
+	b.functionQueue = []func(bot *Bot, input *types.Input) *types.Output{}
 }
 
 // Add a list of functions to the function queue
@@ -243,6 +274,11 @@ func (b *Bot) AddDefinitions(name string, definitions *map[string]openai.Functio
 	for key, f := range *definitions {
 		b.functionDefinitions[fmt.Sprintf("%v-%v", name, key)] = f
 	}
+
+	// Add definitions to each of the conversations
+	for i := range b.Conversations {
+		b.Conversations[i].addDefinitions(&b.functionDefinitions)
+	}
 }
 
 // Writes a value to the variables map
@@ -256,17 +292,31 @@ func (b *Bot) GetVariable(key string) any {
 }
 
 // Setup sets up the bot with an openai Client
-func (b *Bot) Setup(client *openai.Client) {
-	b.client = client
+func (b *Bot) setup(config *config.Config, isNew bool) error {
+	b.Config = config
 
 	// Set up each associated conversations
 	for i := range b.Conversations {
-		b.Conversations[i].setup(client, &b.functionDefinitions)
+		b.Conversations[i].setup(config)
 	}
+
+	// If the bot isn't new, don't save it
+	if !isNew {
+		return nil
+	}
+
+	// Save the bot
+	if err := b.Config.Gorm.Create(&b).Error; err != nil {
+		return err
+	}
+
+	// Create and save the memory
+	b.Memory.BotID = b.ID
+	return b.Config.Gorm.Create(&b.Memory).Error
 }
 
 // NewBot creates a new Bot object
-func NewBot(name string, permissions byte) (*Bot, error) {
+func NewBot(name string, permissions byte, cfg *config.Config) (*Bot, error) {
 	// Create the library
 	b := Bot{
 		Name:                name,
@@ -279,5 +329,5 @@ func NewBot(name string, permissions byte) (*Bot, error) {
 		variables:           map[string]any{},
 	}
 
-	return &b, db.Create(&b).Error
+	return &b, b.setup(cfg, true)
 }

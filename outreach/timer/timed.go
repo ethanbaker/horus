@@ -1,5 +1,6 @@
 package outreach
 
+/*
 import (
 	"fmt"
 	"time"
@@ -66,3 +67,5 @@ func NewTimer(content string, methods []Method, timestamp time.Time) Message {
 
 	return &m
 }
+
+*/

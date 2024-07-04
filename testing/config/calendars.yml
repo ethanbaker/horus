@@ -1,0 +1,6 @@
+# Public ICS calendars for testing. This can be replaced with your own calendars
+calendars:
+  - url: "https://ics.calendarlabs.com/76/73350498/US_Holidays.ics"
+  - url: "https://calendar.google.com/calendar/ical/959b775d44eb7ade5643b47591d6b4c815b1960c38d20258e30aa881ba17dcc4%40group.calendar.google.com/public/basic.ics"
+
+timezone-format: "America/New_York"

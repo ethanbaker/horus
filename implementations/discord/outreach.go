@@ -1,0 +1,121 @@
+// Handle any outreach messages
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/bwmarrin/discordgo"
+	"github.com/ethanbaker/horus/outreach"
+	"github.com/ethanbaker/horus/utils/config"
+	"github.com/ethanbaker/horus/utils/format"
+	"github.com/ethanbaker/horus/utils/types"
+	"github.com/sashabaranov/go-openai"
+	"gopkg.in/yaml.v3"
+)
+
+// Setup Outreach functionality
+func setupOutreach(s *discordgo.Session, cfg *config.Config) error {
+	var err error
+
+	// Setup outreach
+	if err = outreach.Setup(cfg); err != nil {
+		return err
+	}
+
+	var ch chan string
+	if ch, err = outreach.AddChannel("discord"); err != nil {
+		return err
+	}
+
+	// On new content, send it to the user
+	go onOutreach(s, ch)
+
+	// Read in outreach config
+	yamlFile, err := os.ReadFile(filepath.Join(cfg.Getenv("BASE_PATH"), cfg.Getenv("OUTREACH_CONFIG")))
+	if err != nil {
+		return err
+	}
+
+	var outreachConfig types.OutreachConfig
+	if err = yaml.Unmarshal(yamlFile, &outreachConfig); err != nil {
+		return err
+	}
+
+	// Add the static outreaches if they match this implementation key
+	for _, msg := range outreachConfig.Static {
+		// Only add messages for discord outreaches
+		forDiscord := false
+		for i := 0; i < len(msg.Channels) && !forDiscord; i++ {
+			forDiscord = forDiscord || msg.Channels[i] == types.DiscordMethod
+		}
+
+		// Add the outreach
+		if err := outreach.New(types.StaticModule, msg.Name, msg.Channels, msg.Data); err != nil {
+			return err
+		}
+	}
+
+	// Add the dynamic outreaches if they match this implementation key
+	for _, msg := range outreachConfig.Dynamic {
+		// Only add messages for discord outreaches
+		forDiscord := false
+		for i := 0; i < len(msg.Channels) && !forDiscord; i++ {
+			forDiscord = forDiscord || msg.Channels[i] == types.DiscordMethod
+		}
+
+		// Add the outreach
+		if err := outreach.New(types.DynamicModule, msg.Name, msg.Channels, msg.Data); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Handle messages that should be sent to a user
+func onOutreach(s *discordgo.Session, ch chan string) {
+	// Open a channel to the user
+	channel, err := s.UserChannelCreate(cfg.Getenv("DISCORD_USER_ID"))
+	if err != nil {
+		log.Fatalf("[ERROR]: In discord, error opening up user channel (err: %v)\n", err)
+	}
+
+	cfg.DiscordOpenChannels = append(cfg.DiscordOpenChannels, channel.ID)
+
+	for {
+		content := <-ch
+		log.Printf("[STATUS]: New outreach message (%v)\n", content)
+
+		// Send the user a message
+		_, err = s.ChannelMessageSend(channel.ID, format.FormatDiscord(content))
+		if err != nil {
+			log.Printf("[ERROR]: In discord, error sending user message (err: %v)\n", err)
+			continue
+		}
+
+		// Always create a new conversation when an outreach message appears
+		currentConversation[channel.ID] = &ChannelInfo{
+			Name:            fmt.Sprintf("discord-%v-%v", channel.ID, time.Now().UTC().Unix()),
+			LastMessageTime: time.Now().UTC(),
+		}
+		name := currentConversation[channel.ID].Name
+
+		// Make sure the conversation exists
+		if !bot.IsConversation(name) {
+			if err := bot.AddConversation(name); err != nil {
+				log.Printf("[ERROR]: In discord, error sending creating conversation (err: %v)\n", err)
+				continue
+			}
+		}
+
+		// Add the outreach message to the conversation
+		if err := bot.AddMessage(name, openai.ChatMessageRoleAssistant, "", content); err != nil {
+			log.Printf("[ERROR]: In discord, error adding message to conversation (err: %v)\n", err)
+			continue
+		}
+	}
+}

@@ -10,23 +10,42 @@ Here are different preset "variables" that you can search and replace in this te
 
 
 <!-- PROJECT SHIELDS/BUTTONS -->
-<!-- 
-  Netlify buttons:
-[![Netlify Status]()]()
-  Golang specific buttons:
-[![Go Report Card](https://goreportcard.com/badge/github.com/ethanbaker/horus)](https://goreportcard.com/report/github.com/ethanbaker/horus)
-NEED GITHUB WORKFLOW [![Go Coverage](https://github.com/ethanbaker/horus/wiki/coverage.svg)](https://raw.githack.com/wiki/ethanbaker/horus/coverage.html)
--->
 ![alpha](https://img.shields.io/badge/status-alpha-red)
+[![License][license-shield]][license-url]
+[![Issues][issues-shield]][issues-url]
+
+
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
 
+<!-- 
+NEED GITHUB WORKFLOW [![Go Coverage](https://github.com/ethanbaker/horus/wiki/coverage.svg)](https://raw.githack.com/wiki/ethanbaker/horus/coverage.html)
+-->
 
-[![GoDoc](https://godoc.org/github.com/ethanbaker/horus?status.svg)](https://godoc.org/github.com/ethanbaker/horus)
+<h4>Utils</h4>
+
+[![GoDoc](https://godoc.org/github.com/ethanbaker/horus/utils?status.svg)](https://godoc.org/github.com/ethanbaker/horus/utils)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ethanbaker/horus/utils)](https://goreportcard.com/report/github.com/ethanbaker/horus/utils)
+[![Go Coverage Report](./docs/utils-coverage.svg)](#)
+
+<h4>Bot</h4>
+
+[![GoDoc](https://godoc.org/github.com/ethanbaker/horus/bot?status.svg)](https://godoc.org/github.com/ethanbaker/horus/bot)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ethanbaker/horus/bot)](https://goreportcard.com/report/github.com/ethanbaker/horus/bot)
+[![Go Coverage Report](./docs/bot-coverage.svg)](#)
+
+<h4>Outreach</h4>
+
+[![GoDoc](https://godoc.org/github.com/ethanbaker/horus/outreach?status.svg)](https://godoc.org/github.com/ethanbaker/horus/outreach)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ethanbaker/horus/outreach)](https://goreportcard.com/report/github.com/ethanbaker/horus/outreach)
+[![Go Coverage Report](./docs/outreach-coverage.svg)](#)
+
+<h4>Implementation - Discord</h4>
+
+[![GoDoc](https://godoc.org/github.com/ethanbaker/horus/implementations/discord?status.svg)](https://godoc.org/github.com/ethanbaker/horus/implementations/discord)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ethanbaker/horus/implementations/discord)](https://goreportcard.com/report/github.com/ethanbaker/horus/implementations/discord)
 
 <!-- PROJECT LOGO -->
 <br><br><br>
