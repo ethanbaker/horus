@@ -293,6 +293,7 @@ func NotionDailyDigest(c *config.Config, _ map[string]any) string {
 	var err error
 
 	// Get calendar events
+	calendars = []*ics.Calendar{}
 	for _, cal := range calendarConfig.Calendars {
 		// Get the URL
 		resp, err := http.Get(cal.URL)
