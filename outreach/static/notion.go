@@ -397,6 +397,7 @@ func getNotionDailyDigest(c *config.Config) (string, error) {
 						// If time is equal to start time reject
 						if start.Truncate(24 * time.Hour).Equal(t.Truncate(24 * time.Hour)) {
 							start = time.Time{}
+							startDay = time.Time{}
 							break
 						}
 					}
@@ -480,7 +481,7 @@ func getNotionDailyDigest(c *config.Config) (string, error) {
 	}
 
 	// Add calendar events to the output
-	if len(schedule.Results) != 0 {
+	if len(calendarEvents) != 0 {
 		output += "<STRONG>Schedule:<STRONG>\n"
 	}
 

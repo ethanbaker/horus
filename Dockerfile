@@ -2,6 +2,8 @@
 
 FROM golang:1.20
 ENV GO111MODULE=auto
+ENV TZ="America/New_York"
+RUN date
 
 # Set the working directory for the docker image
 WORKDIR /go/src/app
@@ -27,4 +29,4 @@ CMD [ "/go/src/app/discord_main" ]
 
 # Commands to build and run:
 # docker build --tag horus .
-# docker run -d --network="host" --name horus --env-file config/.env horus
+# docker run -d --network="host" --name horus --env-file config/.env.prod horus
